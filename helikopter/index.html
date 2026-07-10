@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Helikopter 🚁</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
+    background: linear-gradient(135deg, #6C5CE7, #00CEC9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+  h1 {
+    color: #2d3436;
+    margin: 0;
+    font-size: clamp(14px, 2.4vh, 22px);
+    white-space: nowrap;
+  }
+  #app {
+    background: white;
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    max-width: 1100px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f1f2f6;
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .diff-group {
+    display: flex;
+    gap: 4px;
+    background: white;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  button.diff {
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-weight: bold;
+    font-size: clamp(11px, 1.6vh, 14px);
+    cursor: pointer;
+    color: #636e72;
+  }
+  button.diff.active { background: #6C5CE7; color: white; }
+  .stats {
+    font-weight: bold;
+    color: #2d3436;
+    font-size: clamp(12px, 1.8vh, 15px);
+    white-space: nowrap;
+  }
+  button.action {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #2d3436;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
+    background: #fdcb6e;
+  }
+  .board-wrap {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    overflow: hidden;
+  }
+  canvas {
+    background: #74b9ff;
+    border: 3px solid #2d3436;
+    border-radius: 10px;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: pointer;
+  }
+  #overOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(45,52,54,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #overOverlay.hidden { display: none; }
+  .over-card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 28px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    max-width: 360px;
+  }
+  .over-card .emoji { font-size: 3rem; margin-bottom: 8px; }
+  .over-card p { color: #2d3436; font-size: 1.1rem; margin: 8px 0 20px; }
+  .over-card button {
+    background: #00b894;
+    color: white;
+    font-size: 1rem;
+    padding: 10px 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <h1>🚁 Helikopter</h1>
+    <div class="diff-group">
+      <button class="diff" data-diff="easy">Lätt</button>
+      <button class="diff active" data-diff="medium">Mellan</button>
+      <button class="diff" data-diff="hard">Svår</button>
+    </div>
+    <div class="stats">Poäng: <span id="score">0</span></div>
+    <button id="restartBtn" class="action">🔄 Ny omgång</button>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+</div>
+
+<div id="overOverlay" class="hidden">
+  <div class="over-card">
+    <div class="emoji" id="overEmoji">🚁</div>
+    <div><strong id="overTitle">Kraschad!</strong></div>
+    <p>Du fick <span id="overScore"></span> poäng</p>
+    <button id="playAgainBtn" class="action">Spela igen</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const overOverlay = document.getElementById('overOverlay');
+const overScoreEl = document.getElementById('overScore');
+const overTitleEl = document.getElementById('overTitle');
+const overEmojiEl = document.getElementById('overEmoji');
+
+const SETTINGS = {
+  easy:   { scrollFrac: 0.16, gapStartFrac: 0.46, gapMinFrac: 0.30, narrowPerSegFrac: 0.0016, driftBaseFrac: 0.020, driftGrowFrac: 0.0004, driftMaxFrac: 0.12 },
+  medium: { scrollFrac: 0.22, gapStartFrac: 0.38, gapMinFrac: 0.22, narrowPerSegFrac: 0.0018, driftBaseFrac: 0.030, driftGrowFrac: 0.0007, driftMaxFrac: 0.18 },
+  hard:   { scrollFrac: 0.30, gapStartFrac: 0.32, gapMinFrac: 0.16, narrowPerSegFrac: 0.0024, driftBaseFrac: 0.045, driftGrowFrac: 0.0011, driftMaxFrac: 0.26 },
+};
+const SEG_SPACING_FRAC = 0.14;
+const MARGIN_FRAC = 0.05;
+
+let difficulty = 'medium';
+let W = 0, H = 0;
+let heli = { x: 0, y: 0, r: 0 };
+let vy = 0;
+let gravity = 0, thrust = 0, maxSpeed = 0, scrollSpeed = 0;
+let segments = [];
+let segIndex = 0;
+let elapsed = 0;
+let score = 0;
+let holding = false;
+let running = false;
+let rafId = null;
+let lastTime = 0;
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function segSpacing() {
+  return W * SEG_SPACING_FRAC;
+}
+
+function gapForIndex(i) {
+  const s = SETTINGS[difficulty];
+  const gap = s.gapStartFrac * H - s.narrowPerSegFrac * H * i;
+  return Math.max(s.gapMinFrac * H, gap);
+}
+
+function driftForIndex(i) {
+  const s = SETTINGS[difficulty];
+  const d = s.driftBaseFrac * H + s.driftGrowFrac * H * i;
+  return Math.min(s.driftMaxFrac * H, d);
+}
+
+function nextSegment(prev, i) {
+  const gap = gapForIndex(i);
+  const drift = driftForIndex(i);
+  const margin = H * MARGIN_FRAC;
+  let midY = (prev.ceilY + prev.floorY) / 2 + (Math.random() * 2 - 1) * drift;
+  const minMid = margin + gap / 2;
+  const maxMid = H - margin - gap / 2;
+  midY = clamp(midY, minMid, maxMid);
+  return {
+    x: prev.x + segSpacing(),
+    ceilY: midY - gap / 2,
+    floorY: midY + gap / 2,
+  };
+}
+
+function buildTunnel() {
+  const gap0 = gapForIndex(0);
+  const midY = H / 2;
+  segments = [{ x: 0, ceilY: midY - gap0 / 2, floorY: midY + gap0 / 2 }];
+  segIndex = 1;
+  while (segments[segments.length - 1].x < W + segSpacing()) {
+    segments.push(nextSegment(segments[segments.length - 1], segIndex));
+    segIndex++;
+  }
+}
+
+function computeLayout() {
+  const wrap = canvas.parentElement;
+  W = Math.max(1, Math.round(wrap.clientWidth));
+  H = Math.max(1, Math.round(wrap.clientHeight));
+  canvas.width = W;
+  canvas.height = H;
+
+  heli.x = W * 0.22;
+  heli.r = Math.max(10, Math.min(24, H * 0.05));
+
+  gravity = H * 1.1;
+  thrust = H * 2.4;
+  maxSpeed = H * 0.9;
+  scrollSpeed = W * SETTINGS[difficulty].scrollFrac;
+
+  buildTunnel();
+}
+
+function resetGame() {
+  computeLayout();
+  heli.y = H / 2;
+  vy = 0;
+  elapsed = 0;
+  score = 0;
+  scoreEl.textContent = '0';
+  overOverlay.classList.add('hidden');
+  running = true;
+  lastTime = performance.now();
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(loop);
+}
+
+function tunnelAt(x) {
+  for (let i = 0; i < segments.length - 1; i++) {
+    const a = segments[i], b = segments[i + 1];
+    if (x >= a.x && x <= b.x) {
+      const t = (x - a.x) / (b.x - a.x);
+      return {
+        ceilY: a.ceilY + (b.ceilY - a.ceilY) * t,
+        floorY: a.floorY + (b.floorY - a.floorY) * t,
+      };
+    }
+  }
+  const first = segments[0];
+  return { ceilY: first.ceilY, floorY: first.floorY };
+}
+
+function update(dt) {
+  elapsed += dt;
+  score = Math.floor(elapsed * 10);
+  scoreEl.textContent = String(score);
+
+  vy += gravity * dt;
+  if (holding) vy -= thrust * dt;
+  vy = clamp(vy, -maxSpeed, maxSpeed);
+  heli.y += vy * dt;
+
+  segments.forEach(s => { s.x -= scrollSpeed * dt; });
+  while (segments.length && segments[segments.length - 1].x < W + segSpacing()) {
+    segments.push(nextSegment(segments[segments.length - 1], segIndex));
+    segIndex++;
+  }
+  while (segments.length > 2 && segments[1].x < -segSpacing()) {
+    segments.shift();
+  }
+
+  const { ceilY, floorY } = tunnelAt(heli.x);
+  if (heli.y - heli.r < ceilY || heli.y + heli.r > floorY ||
+      heli.y - heli.r < 0 || heli.y + heli.r > H) {
+    endGame();
+  }
+}
+
+function draw() {
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#74b9ff');
+  sky.addColorStop(1, '#a1e3ff');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#636e72';
+  ctx.beginPath();
+  ctx.moveTo(segments[0].x, 0);
+  segments.forEach(s => ctx.lineTo(s.x, s.ceilY));
+  ctx.lineTo(segments[segments.length - 1].x, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(segments[0].x, H);
+  segments.forEach(s => ctx.lineTo(s.x, s.floorY));
+  ctx.lineTo(segments[segments.length - 1].x, H);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.save();
+  ctx.translate(heli.x, heli.y);
+  ctx.rotate(clamp(vy / maxSpeed, -1, 1) * 0.3);
+  ctx.font = `${heli.r * 2.4}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🚁', 0, 0);
+  ctx.restore();
+}
+
+function loop(now) {
+  if (!running) return;
+  const dt = Math.min(0.032, (now - lastTime) / 1000);
+  lastTime = now;
+  update(dt);
+  draw();
+  rafId = requestAnimationFrame(loop);
+}
+
+function endGame() {
+  running = false;
+  cancelAnimationFrame(rafId);
+  overEmojiEl.textContent = '🚁';
+  overTitleEl.textContent = 'Kraschad!';
+  overScoreEl.textContent = String(score);
+  overOverlay.classList.remove('hidden');
+}
+
+document.querySelectorAll('.diff').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+    resetGame();
+  });
+});
+
+document.getElementById('restartBtn').addEventListener('click', resetGame);
+document.getElementById('playAgainBtn').addEventListener('click', resetGame);
+
+canvas.addEventListener('mousedown', () => { holding = true; });
+canvas.addEventListener('mouseup', () => { holding = false; });
+canvas.addEventListener('mouseleave', () => { holding = false; });
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); holding = true; }, { passive: false });
+canvas.addEventListener('touchend', (e) => { e.preventDefault(); holding = false; }, { passive: false });
+canvas.addEventListener('touchcancel', () => { holding = false; });
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === ' ' || e.key === 'ArrowUp') { e.preventDefault(); holding = true; }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.key === ' ' || e.key === 'ArrowUp') holding = false;
+});
+window.addEventListener('blur', () => { holding = false; });
+
+let resizeTimer = null;
+new ResizeObserver(() => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(resetGame, 150);
+}).observe(canvas.parentElement);
+
+resetGame();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tornförsvar 🎯</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
+    background: linear-gradient(135deg, #6C5CE7, #00CEC9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+  h1 {
+    color: #2d3436;
+    margin: 0;
+    font-size: clamp(14px, 2.4vh, 22px);
+    white-space: nowrap;
+  }
+  #app {
+    background: white;
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    max-width: 1100px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f1f2f6;
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .stats {
+    font-weight: bold;
+    color: #2d3436;
+    font-size: clamp(12px, 1.8vh, 15px);
+    white-space: nowrap;
+    transition: color 0.15s;
+  }
+  .stats.flash { color: #d63031; }
+  button.action {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: white;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
+    background: #00b894;
+  }
+  .board-wrap {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    overflow: hidden;
+  }
+  canvas {
+    background: #dfe6e9;
+    border: 3px solid #2d3436;
+    border-radius: 10px;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: pointer;
+  }
+  #overOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(45,52,54,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #overOverlay.hidden { display: none; }
+  .over-card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 28px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    max-width: 360px;
+  }
+  .over-card .emoji { font-size: 3rem; margin-bottom: 8px; }
+  .over-card p { color: #2d3436; font-size: 1.1rem; margin: 8px 0 4px; }
+  .over-card button {
+    background: #00b894;
+    color: white;
+    font-size: 1rem;
+    padding: 10px 20px;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <h1>🎯 Tornförsvar</h1>
+    <div class="stats">Guld: <span id="gold">100</span></div>
+    <div class="stats">Liv: <span id="lives">10</span></div>
+    <div class="stats">Våg: <span id="wave">1</span></div>
+    <div class="stats">Poäng: <span id="score">0</span></div>
+    <button id="restartBtn" class="action">🔄 Ny omgång</button>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+</div>
+
+<div id="overOverlay" class="hidden">
+  <div class="over-card">
+    <div class="emoji">💀</div>
+    <div><strong>Game over!</strong></div>
+    <p>Du fick <span id="overScore"></span> poäng</p>
+    <p>Du nådde våg <span id="overWave"></span></p>
+    <button id="playAgainBtn" class="action">Spela igen</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const goldEl = document.getElementById('gold');
+const livesEl = document.getElementById('lives');
+const waveEl = document.getElementById('wave');
+const scoreEl = document.getElementById('score');
+const overOverlay = document.getElementById('overOverlay');
+const overScoreEl = document.getElementById('overScore');
+const overWaveEl = document.getElementById('overWave');
+
+const START_GOLD = 100;
+const START_LIVES = 10;
+const TOWER_COST = 40;
+const TOWER_DAMAGE = 14;
+const TOWER_FIRE_INTERVAL = 0.6;
+const SPAWN_INTERVAL = 1.2;
+const WAVE_PAUSE = 3.5;
+const WAYPOINTS_FRAC = [
+  [0.05, 0.5], [0.3, 0.5], [0.3, 0.2],
+  [0.7, 0.2], [0.7, 0.8], [0.95, 0.8],
+];
+
+let W = 0, H = 0;
+let cellW = 60, cellH = 60, cols = 0, rows = 0;
+let grid = [];
+let waypoints = [];
+let segLengths = [];
+let cumLengths = [];
+let totalLength = 0;
+let pathWidth = 60;
+
+let gold = START_GOLD, lives = START_LIVES, wave = 1, score = 0;
+let enemies = [];
+let lasers = [];
+let running = false;
+let rafId = null;
+let lastTime = 0;
+let hoverCell = null;
+
+let waveState = 'spawning';
+let spawnedInWave = 0;
+let enemiesInWave = 0;
+let spawnTimer = 0;
+let pauseTimer = 0;
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function distToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  let t = lenSq ? ((px - ax) * dx + (py - ay) * dy) / lenSq : 0;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + dx * t, cy = ay + dy * t;
+  return Math.hypot(px - cx, py - cy);
+}
+
+function computeLayout() {
+  const wrap = canvas.parentElement;
+  W = Math.max(1, Math.round(wrap.clientWidth));
+  H = Math.max(1, Math.round(wrap.clientHeight));
+  canvas.width = W;
+  canvas.height = H;
+
+  waypoints = WAYPOINTS_FRAC.map(([fx, fy]) => ({ x: fx * W, y: fy * H }));
+  segLengths = [];
+  cumLengths = [0];
+  totalLength = 0;
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const a = waypoints[i], b = waypoints[i + 1];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    segLengths.push(len);
+    totalLength += len;
+    cumLengths.push(totalLength);
+  }
+  pathWidth = Math.max(40, Math.min(70, W * 0.06));
+
+  const targetCell = Math.max(50, Math.min(80, W / 13));
+  cols = Math.max(3, Math.round(W / targetCell));
+  rows = Math.max(3, Math.round(H / targetCell));
+  cellW = W / cols;
+  cellH = H / rows;
+
+  grid = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cx = c * cellW + cellW / 2;
+      const cy = r * cellH + cellH / 2;
+      let onPath = false;
+      for (let i = 0; i < waypoints.length - 1; i++) {
+        const a = waypoints[i], b = waypoints[i + 1];
+        if (distToSegment(cx, cy, a.x, a.y, b.x, b.y) < pathWidth / 2 + Math.min(cellW, cellH) * 0.4) {
+          onPath = true;
+          break;
+        }
+      }
+      grid.push({ row: r, col: c, x: cx, y: cy, onPath, tower: null });
+    }
+  }
+}
+
+function posAtDist(d) {
+  if (d >= totalLength) return waypoints[waypoints.length - 1];
+  let i = 0;
+  while (i < segLengths.length - 1 && cumLengths[i + 1] < d) i++;
+  const segStart = cumLengths[i];
+  const segLen = segLengths[i] || 1;
+  const t = (d - segStart) / segLen;
+  const a = waypoints[i], b = waypoints[i + 1];
+  return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) };
+}
+
+function cellAt(px, py) {
+  const col = Math.floor(px / cellW);
+  const row = Math.floor(py / cellH);
+  if (col < 0 || col >= cols || row < 0 || row >= rows) return null;
+  return grid[row * cols + col];
+}
+
+function flashStat(el) {
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 300);
+}
+
+function startWave() {
+  waveState = 'spawning';
+  spawnedInWave = 0;
+  enemiesInWave = 5 + wave;
+  spawnTimer = 0;
+}
+
+function resetGame() {
+  computeLayout();
+  gold = START_GOLD;
+  lives = START_LIVES;
+  wave = 1;
+  score = 0;
+  enemies = [];
+  lasers = [];
+  goldEl.textContent = String(gold);
+  livesEl.textContent = String(lives);
+  waveEl.textContent = String(wave);
+  scoreEl.textContent = String(score);
+  overOverlay.classList.add('hidden');
+  startWave();
+  running = true;
+  lastTime = performance.now();
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(loop);
+}
+
+function spawnEnemy() {
+  const hp = 20 + 8 * (wave - 1);
+  const speed = (W * 0.045) * (1 + 0.06 * (wave - 1));
+  enemies.push({ dist: 0, hp, maxHp: hp, speed, alive: true });
+}
+
+function updateEnemies(dt) {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    e.dist += e.speed * dt;
+    if (e.dist >= totalLength) {
+      e.alive = false;
+      lives--;
+      livesEl.textContent = String(lives);
+      flashStat(livesEl.parentElement);
+      if (lives <= 0) {
+        endGame();
+        return;
+      }
+    }
+  }
+  enemies = enemies.filter(e => e.alive);
+}
+
+function updateTowers(dt) {
+  for (const cell of grid) {
+    const t = cell.tower;
+    if (!t) continue;
+    t.timer -= dt;
+    if (t.timer > 0) continue;
+    let best = null, bestDist = Infinity;
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const pos = posAtDist(e.dist);
+      const d = Math.hypot(pos.x - cell.x, pos.y - cell.y);
+      if (d <= t.range && d < bestDist) { best = e; bestDist = d; }
+    }
+    if (best) {
+      const pos = posAtDist(best.dist);
+      best.hp -= TOWER_DAMAGE;
+      lasers.push({ x1: cell.x, y1: cell.y, x2: pos.x, y2: pos.y, life: 0.1 });
+      if (best.hp <= 0) {
+        best.alive = false;
+        gold += 6 + Math.floor(Math.random() * 3);
+        score += 10;
+        goldEl.textContent = String(gold);
+        scoreEl.textContent = String(score);
+      }
+      t.timer = TOWER_FIRE_INTERVAL;
+    }
+  }
+}
+
+function updateWave(dt) {
+  if (waveState === 'spawning') {
+    spawnTimer -= dt;
+    if (spawnTimer <= 0 && spawnedInWave < enemiesInWave) {
+      spawnEnemy();
+      spawnedInWave++;
+      spawnTimer = SPAWN_INTERVAL;
+    }
+    if (spawnedInWave >= enemiesInWave) {
+      waveState = 'clearing';
+    }
+  } else if (waveState === 'clearing') {
+    if (enemies.length === 0) {
+      waveState = 'pause';
+      pauseTimer = WAVE_PAUSE;
+    }
+  } else if (waveState === 'pause') {
+    pauseTimer -= dt;
+    if (pauseTimer <= 0) {
+      wave++;
+      waveEl.textContent = String(wave);
+      startWave();
+    }
+  }
+}
+
+function update(dt) {
+  updateWave(dt);
+  updateEnemies(dt);
+  if (!running) return;
+  updateTowers(dt);
+  lasers.forEach(l => l.life -= dt);
+  lasers = lasers.filter(l => l.life > 0);
+}
+
+function drawPath() {
+  ctx.strokeStyle = '#b2bec3';
+  ctx.lineWidth = pathWidth;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  waypoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+  ctx.stroke();
+
+  ctx.strokeStyle = '#a29bb0';
+  ctx.lineWidth = pathWidth * 0.94;
+  ctx.setLineDash([Math.min(cellW, cellH) * 0.3, Math.min(cellW, cellH) * 0.3]);
+  ctx.beginPath();
+  waypoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawGrid() {
+  ctx.strokeStyle = 'rgba(45,52,54,0.08)';
+  ctx.lineWidth = 1;
+  for (let c = 1; c < cols; c++) {
+    ctx.beginPath();
+    ctx.moveTo(c * cellW, 0);
+    ctx.lineTo(c * cellW, H);
+    ctx.stroke();
+  }
+  for (let r = 1; r < rows; r++) {
+    ctx.beginPath();
+    ctx.moveTo(0, r * cellH);
+    ctx.lineTo(W, r * cellH);
+    ctx.stroke();
+  }
+}
+
+function drawTowers() {
+  const radius = Math.min(cellW, cellH) * 0.32;
+  for (const cell of grid) {
+    if (!cell.tower) continue;
+    ctx.fillStyle = '#0984e3';
+    ctx.beginPath();
+    ctx.arc(cell.x, cell.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#2d3436';
+    ctx.beginPath();
+    ctx.arc(cell.x, cell.y, radius * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawHoverPreview() {
+  if (!hoverCell || hoverCell.onPath || hoverCell.tower) return;
+  const range = Math.min(cellW, cellH) * 2.3;
+  ctx.strokeStyle = gold >= TOWER_COST ? 'rgba(9,132,227,0.5)' : 'rgba(214,48,49,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(hoverCell.x, hoverCell.y, range, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(9,132,227,0.15)';
+  ctx.fillRect(hoverCell.col * cellW, hoverCell.row * cellH, cellW, cellH);
+}
+
+function drawEnemies() {
+  const r = Math.min(cellW, cellH) * 0.28;
+  ctx.font = `${r * 2.2}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const e of enemies) {
+    const pos = posAtDist(e.dist);
+    ctx.fillText('👹', pos.x, pos.y + r * 0.1);
+    const barW = r * 2.2;
+    ctx.fillStyle = '#636e72';
+    ctx.fillRect(pos.x - barW / 2, pos.y - r * 1.6, barW, 4);
+    ctx.fillStyle = '#00b894';
+    ctx.fillRect(pos.x - barW / 2, pos.y - r * 1.6, barW * Math.max(0, e.hp / e.maxHp), 4);
+  }
+}
+
+function drawLasers() {
+  ctx.strokeStyle = '#e17055';
+  ctx.lineWidth = 3;
+  for (const l of lasers) {
+    ctx.globalAlpha = Math.max(0, l.life / 0.1);
+    ctx.beginPath();
+    ctx.moveTo(l.x1, l.y1);
+    ctx.lineTo(l.x2, l.y2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawWaveStatus() {
+  if (waveState !== 'pause') return;
+  ctx.fillStyle = 'rgba(45,52,54,0.75)';
+  ctx.font = `bold ${Math.max(14, H * 0.045)}px 'Trebuchet MS', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Nästa våg om ' + Math.ceil(pauseTimer) + 's', W / 2, 8);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#dfe6e9';
+  ctx.fillRect(0, 0, W, H);
+  drawGrid();
+  drawPath();
+  drawTowers();
+  drawHoverPreview();
+  drawEnemies();
+  drawLasers();
+  drawWaveStatus();
+}
+
+function loop(now) {
+  if (!running) return;
+  const dt = Math.min(0.032, (now - lastTime) / 1000);
+  lastTime = now;
+  update(dt);
+  draw();
+  if (running) rafId = requestAnimationFrame(loop);
+}
+
+function endGame() {
+  running = false;
+  cancelAnimationFrame(rafId);
+  overScoreEl.textContent = String(score);
+  overWaveEl.textContent = String(wave);
+  overOverlay.classList.remove('hidden');
+}
+
+document.getElementById('restartBtn').addEventListener('click', resetGame);
+document.getElementById('playAgainBtn').addEventListener('click', resetGame);
+
+function pointFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return {
+    x: ((clientX - rect.left) / rect.width) * W,
+    y: ((clientY - rect.top) / rect.height) * H,
+  };
+}
+
+function tryPlaceTower(px, py) {
+  const cell = cellAt(px, py);
+  if (!cell || cell.onPath || cell.tower) return;
+  if (gold < TOWER_COST) {
+    flashStat(goldEl.parentElement);
+    return;
+  }
+  gold -= TOWER_COST;
+  goldEl.textContent = String(gold);
+  cell.tower = {
+    timer: 0,
+    range: Math.min(cellW, cellH) * 2.3,
+  };
+}
+
+canvas.addEventListener('click', (e) => {
+  if (!running) return;
+  const p = pointFromEvent(e);
+  tryPlaceTower(p.x, p.y);
+});
+canvas.addEventListener('mousemove', (e) => {
+  const p = pointFromEvent(e);
+  hoverCell = cellAt(p.x, p.y);
+});
+canvas.addEventListener('mouseleave', () => { hoverCell = null; });
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (!running) return;
+  const p = pointFromEvent(e);
+  hoverCell = cellAt(p.x, p.y);
+  tryPlaceTower(p.x, p.y);
+}, { passive: false });
+
+let resizeTimer = null;
+new ResizeObserver(() => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(resetGame, 150);
+}).observe(canvas.parentElement);
+
+resetGame();
+</script>
+
+</body>
+</html>

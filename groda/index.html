@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Grodan 🐸</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
+    background: linear-gradient(135deg, #6C5CE7, #00CEC9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+  h1 {
+    color: #2d3436;
+    margin: 0;
+    font-size: clamp(14px, 2.4vh, 22px);
+    white-space: nowrap;
+  }
+  #app {
+    background: white;
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    max-width: 1000px;
+  }
+  .topbar, .bottombar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f1f2f6;
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .diff-group {
+    display: flex;
+    gap: 4px;
+    background: white;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  button.diff {
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-weight: bold;
+    font-size: clamp(11px, 1.6vh, 14px);
+    cursor: pointer;
+    color: #636e72;
+  }
+  button.diff.active { background: #6C5CE7; color: white; }
+  .stats {
+    font-weight: bold;
+    color: #2d3436;
+    font-size: clamp(12px, 1.8vh, 15px);
+    white-space: nowrap;
+  }
+  button.action {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #2d3436;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
+    background: #fdcb6e;
+  }
+  .board-wrap {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    overflow: hidden;
+  }
+  canvas {
+    background: #dfe4ea;
+    border: 3px solid #2d3436;
+    border-radius: 10px;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+  .dpad {
+    display: grid;
+    grid-template-columns: repeat(3, clamp(48px, 12vw, 76px));
+    grid-template-rows: repeat(2, clamp(48px, 12vw, 76px));
+    grid-template-areas:
+      ".    up    ."
+      "left down  right";
+    gap: 6px;
+  }
+  .dbtn {
+    border: none;
+    background: #dfe4ea;
+    border-radius: 10px;
+    font-size: clamp(22px, 5vw, 32px);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .dbtn:active { background: #6C5CE7; color: white; }
+  .dbtn[data-dir="up"] { grid-area: up; }
+  .dbtn[data-dir="left"] { grid-area: left; }
+  .dbtn[data-dir="down"] { grid-area: down; }
+  .dbtn[data-dir="right"] { grid-area: right; }
+  #overOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(45,52,54,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #overOverlay.hidden { display: none; }
+  .over-card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 28px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    max-width: 360px;
+  }
+  .over-card .emoji { font-size: 3rem; margin-bottom: 8px; }
+  .over-card p { color: #2d3436; font-size: 1.1rem; margin: 8px 0 20px; }
+  .over-card button {
+    background: #00b894;
+    color: white;
+    font-size: 1rem;
+    padding: 10px 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <h1>🐸 Grodan</h1>
+    <div class="diff-group">
+      <button class="diff" data-diff="easy">Lätt</button>
+      <button class="diff active" data-diff="medium">Mellan</button>
+      <button class="diff" data-diff="hard">Svår</button>
+    </div>
+    <div class="stats">Poäng: <span id="score">0</span></div>
+    <div class="stats">Liv: <span id="lives">3</span></div>
+    <button id="restartBtn" class="action">🔄 Ny omgång</button>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div class="bottombar">
+    <div class="dpad">
+      <button class="dbtn" data-dir="up" aria-label="Upp">⬆️</button>
+      <button class="dbtn" data-dir="left" aria-label="Vänster">⬅️</button>
+      <button class="dbtn" data-dir="down" aria-label="Ner">⬇️</button>
+      <button class="dbtn" data-dir="right" aria-label="Höger">➡️</button>
+    </div>
+  </div>
+</div>
+
+<div id="overOverlay" class="hidden">
+  <div class="over-card">
+    <div class="emoji">🐸</div>
+    <div><strong>Game over!</strong></div>
+    <p>Du fick <span id="overScore"></span> poäng</p>
+    <button id="playAgainBtn" class="action">Spela igen</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const overOverlay = document.getElementById('overOverlay');
+const overScoreEl = document.getElementById('overScore');
+
+const DIFF = {
+  easy:   { lives: 4, carSpeed: 65,  carGap: 2.6, carWidthCells: 1.1,  riverSpeed: 50, logWidthCells: 3.6, logGap: 0.9 },
+  medium: { lives: 3, carSpeed: 105, carGap: 2.0, carWidthCells: 1.15, riverSpeed: 72, logWidthCells: 2.7, logGap: 1.2 },
+  hard:   { lives: 3, carSpeed: 155, carGap: 1.5, carWidthCells: 1.2,  riverSpeed: 95, logWidthCells: 2.0, logGap: 1.5 },
+};
+const TARGET_CELL = 40;
+
+let difficulty = 'medium';
+let cols = 11, rows = 13, cell = 40, offsetX = 0, offsetY = 0;
+let lanes = [];
+let goalPads = [];
+let frog = { x: 5, row: 12 };
+let score = 0, lives = 3, alive = true;
+let rafId = null;
+let lastTime = 0;
+
+function computeGrid() {
+  const wrap = canvas.parentElement;
+  const w = Math.max(1, Math.round(wrap.clientWidth));
+  const h = Math.max(1, Math.round(wrap.clientHeight));
+  canvas.width = w;
+  canvas.height = h;
+
+  let c = Math.max(9, Math.floor(w / TARGET_CELL));
+  let r = Math.max(11, Math.floor(h / TARGET_CELL));
+  const size = Math.max(6, Math.floor(Math.min(w / c, h / r)));
+
+  cols = c;
+  rows = r;
+  cell = size;
+  offsetX = Math.floor((w - cols * cell) / 2);
+  offsetY = Math.floor((h - rows * cell) / 2);
+}
+
+function laneRoles() {
+  const remaining = rows - 3;
+  const roadRows = Math.ceil(remaining / 2);
+  const riverRows = remaining - roadRows;
+  const roles = new Array(rows);
+  roles[0] = 'goal';
+  for (let i = 1; i <= riverRows; i++) roles[i] = 'river';
+  roles[riverRows + 1] = 'median';
+  for (let i = 0; i < roadRows; i++) roles[riverRows + 2 + i] = 'road';
+  roles[rows - 1] = 'start';
+  return roles;
+}
+
+function buildLane(idxInGroup, isRiver) {
+  const cfg = DIFF[difficulty];
+  const dir = idxInGroup % 2 === 0 ? 1 : -1;
+  const speedBase = isRiver ? cfg.riverSpeed : cfg.carSpeed;
+  const speed = speedBase * (1 + idxInGroup * 0.12);
+  const widthCells = isRiver ? cfg.logWidthCells : cfg.carWidthCells;
+  const gapCells = isRiver ? cfg.logGap : cfg.carGap;
+  const w = widthCells * cell;
+  const spacing = w + gapCells * cell;
+  const trackW = cols * cell;
+  const count = Math.max(2, Math.ceil(trackW / spacing) + 1);
+  const loopLen = count * spacing;
+  const startOffset = Math.random() * spacing;
+  const vehicles = [];
+  for (let i = 0; i < count; i++) {
+    vehicles.push({ x: -w + i * spacing + startOffset, w });
+  }
+  return { type: isRiver ? 'river' : 'road', dir, speed, vehicles, loopLen };
+}
+
+function computeGoalPads() {
+  const n = Math.max(3, Math.min(5, Math.floor(cols / 2)));
+  const pads = [];
+  for (let i = 0; i < n; i++) {
+    pads.push(Math.min(cols - 1, Math.round((i + 0.5) * cols / n)));
+  }
+  return [...new Set(pads)];
+}
+
+function rebuildWorld() {
+  const roles = laneRoles();
+  let roadIdx = 0, riverIdx = 0;
+  lanes = roles.map((role) => {
+    if (role === 'road') return buildLane(roadIdx++, false);
+    if (role === 'river') return buildLane(riverIdx++, true);
+    return { type: role };
+  });
+  goalPads = computeGoalPads();
+}
+
+function respawnFrog() {
+  frog.x = Math.floor(cols / 2);
+  frog.row = rows - 1;
+}
+
+function loseLife() {
+  if (!alive) return;
+  lives--;
+  livesEl.textContent = String(lives);
+  if (lives <= 0) {
+    endGame();
+  } else {
+    respawnFrog();
+  }
+}
+
+function checkGoal() {
+  const col = Math.round(frog.x);
+  if (goalPads.includes(col)) {
+    score += 10;
+    scoreEl.textContent = String(score);
+    respawnFrog();
+  } else {
+    loseLife();
+  }
+}
+
+function tryMove(dx, dy) {
+  if (!alive) return;
+  const col = Math.round(frog.x) + dx;
+  const row = frog.row + dy;
+  if (col < 0 || col >= cols) return;
+  if (row < 0 || row >= rows) return;
+  frog.x = col;
+  frog.row = row;
+  if (row === 0) {
+    checkGoal();
+    return;
+  }
+  const lane = lanes[row];
+  if (lane.type === 'road') {
+    const centerPx = frog.x * cell + cell / 2;
+    if (lane.vehicles.some(v => centerPx >= v.x && centerPx <= v.x + v.w)) loseLife();
+  } else if (lane.type === 'river') {
+    const centerPx = frog.x * cell + cell / 2;
+    const onLog = lane.vehicles.some(v => centerPx >= v.x && centerPx <= v.x + v.w);
+    if (!onLog) loseLife();
+  }
+}
+
+function updateLanes(dt) {
+  for (const lane of lanes) {
+    if (lane.type !== 'road' && lane.type !== 'river') continue;
+    for (const v of lane.vehicles) {
+      v.x += lane.dir * lane.speed * dt;
+      if (lane.dir > 0 && v.x > cols * cell) v.x -= lane.loopLen;
+      if (lane.dir < 0 && v.x + v.w < 0) v.x += lane.loopLen;
+    }
+  }
+}
+
+function updateFrog(dt) {
+  if (!alive) return;
+  const lane = lanes[frog.row];
+  if (!lane) return;
+  if (lane.type === 'road') {
+    const centerPx = frog.x * cell + cell / 2;
+    if (lane.vehicles.some(v => centerPx >= v.x && centerPx <= v.x + v.w)) {
+      loseLife();
+    }
+  } else if (lane.type === 'river') {
+    const centerPx = frog.x * cell + cell / 2;
+    const log = lane.vehicles.find(v => centerPx >= v.x && centerPx <= v.x + v.w);
+    if (!log) {
+      loseLife();
+      return;
+    }
+    frog.x += (log.dir * log.speed * dt) / cell;
+    const newCenterPx = frog.x * cell + cell / 2;
+    if (newCenterPx < 0 || newCenterPx > cols * cell) {
+      loseLife();
+    }
+  }
+}
+
+function cellRect(cx, cy) {
+  return [offsetX + cx * cell, offsetY + cy * cell, cell, cell];
+}
+
+function draw() {
+  ctx.fillStyle = '#dfe4ea';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const roleColors = {
+    start: '#8fe39b',
+    median: '#8fe39b',
+    road: '#4b4b4d',
+    river: '#4aa3df',
+    goal: '#3f9a5c',
+  };
+
+  for (let y = 0; y < rows; y++) {
+    ctx.fillStyle = roleColors[lanes[y].type];
+    ctx.fillRect(offsetX, offsetY + y * cell, cols * cell, cell);
+    if (lanes[y].type === 'road') {
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.setLineDash([cell * 0.35, cell * 0.25]);
+      ctx.lineWidth = Math.max(1, cell * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(offsetX, offsetY + y * cell + cell / 2);
+      ctx.lineTo(offsetX + cols * cell, offsetY + y * cell + cell / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  for (let y = 0; y < rows; y++) {
+    const lane = lanes[y];
+    if (lane.type !== 'road' && lane.type !== 'river') continue;
+    for (const v of lane.vehicles) {
+      const px = offsetX + v.x;
+      const py = offsetY + y * cell;
+      ctx.fillStyle = lane.type === 'road' ? '#e17055' : '#a9744f';
+      ctx.beginPath();
+      ctx.roundRect(px + 2, py + cell * 0.12, v.w - 4, cell * 0.76, cell * 0.18);
+      ctx.fill();
+    }
+  }
+
+  ctx.font = `${Math.floor(cell * 0.55)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let x = 0; x < cols; x++) {
+    const cx = offsetX + x * cell + cell / 2;
+    const cy = offsetY + cell / 2;
+    if (goalPads.includes(x)) {
+      ctx.fillText('🪷', cx, cy + 1);
+    } else {
+      ctx.fillText('🌳', cx, cy + 1);
+    }
+  }
+
+  ctx.font = `${Math.floor(cell * 0.8)}px sans-serif`;
+  const fx = offsetX + frog.x * cell + cell / 2;
+  const fy = offsetY + frog.row * cell + cell / 2;
+  ctx.fillText('🐸', fx, fy + 1);
+}
+
+function endGame() {
+  alive = false;
+  cancelAnimationFrame(rafId);
+  overScoreEl.textContent = String(score);
+  overOverlay.classList.remove('hidden');
+}
+
+function resetGame() {
+  computeGrid();
+  rebuildWorld();
+  score = 0;
+  lives = DIFF[difficulty].lives;
+  scoreEl.textContent = '0';
+  livesEl.textContent = String(lives);
+  alive = true;
+  respawnFrog();
+  overOverlay.classList.add('hidden');
+  cancelAnimationFrame(rafId);
+  lastTime = performance.now();
+  rafId = requestAnimationFrame(loop);
+}
+
+function loop(now) {
+  if (!alive) return;
+  const dt = Math.min(0.032, (now - lastTime) / 1000);
+  lastTime = now;
+  updateLanes(dt);
+  updateFrog(dt);
+  draw();
+  rafId = requestAnimationFrame(loop);
+}
+
+document.querySelectorAll('.diff').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+    resetGame();
+  });
+});
+
+document.getElementById('restartBtn').addEventListener('click', resetGame);
+document.getElementById('playAgainBtn').addEventListener('click', resetGame);
+
+document.querySelectorAll('.dbtn').forEach(btn => {
+  const dirMap = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  btn.addEventListener('click', () => {
+    const [x, y] = dirMap[btn.dataset.dir];
+    tryMove(x, y);
+  });
+});
+
+window.addEventListener('keydown', (e) => {
+  const map = {
+    ArrowUp: [0, -1], w: [0, -1], W: [0, -1],
+    ArrowDown: [0, 1], s: [0, 1], S: [0, 1],
+    ArrowLeft: [-1, 0], a: [-1, 0], A: [-1, 0],
+    ArrowRight: [1, 0], d: [1, 0], D: [1, 0],
+  };
+  if (map[e.key]) {
+    e.preventDefault();
+    tryMove(map[e.key][0], map[e.key][1]);
+  }
+});
+
+let touchStart = null;
+canvas.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  touchStart = { x: t.clientX, y: t.clientY };
+}, { passive: true });
+canvas.addEventListener('touchend', (e) => {
+  if (!touchStart) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStart.x;
+  const dy = t.clientY - touchStart.y;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    if (Math.abs(dx) > 20) tryMove(dx > 0 ? 1 : -1, 0);
+  } else {
+    if (Math.abs(dy) > 20) tryMove(0, dy > 0 ? 1 : -1);
+  }
+  touchStart = null;
+});
+
+let resizeTimer = null;
+new ResizeObserver(() => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(resetGame, 150);
+}).observe(canvas.parentElement);
+
+resetGame();
+</script>
+
+</body>
+</html>
