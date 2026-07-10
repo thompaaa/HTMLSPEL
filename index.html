@@ -2,169 +2,194 @@
 <html lang="sv">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Superritverktyget 🎨</title>
 <style>
+  :root {
+    --btn: clamp(26px, min(6vw, 6.5vh), 42px);
+    --gap: clamp(3px, 0.8vh, 8px);
+  }
   * { box-sizing: border-box; }
-  body {
+  html, body {
+    height: 100%;
     margin: 0;
+    overflow: hidden;
+  }
+  body {
     font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
     background: linear-gradient(135deg, #6C5CE7, #00CEC9);
-    min-height: 100vh;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    padding: 16px;
+    justify-content: center;
+    padding: 6px;
   }
   h1 {
-    color: white;
-    text-shadow: 2px 2px 0 #333;
-    margin: 8px 0 16px;
-    font-size: 2rem;
+    color: #2d3436;
+    margin: 0;
+    font-size: clamp(13px, 2.2vh, 20px);
+    white-space: nowrap;
   }
   #app {
     background: white;
-    border-radius: 20px;
-    padding: 16px;
+    border-radius: 16px;
+    padding: 6px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    max-width: 950px;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: var(--gap);
     width: 100%;
+    height: 100%;
+    max-width: 1400px;
   }
-  .toolbar {
+  .topbar, .bottombar {
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
     align-items: center;
     justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
     background: #f1f2f6;
-    border-radius: 14px;
-    padding: 10px;
-  }
-  .group {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    background: white;
     border-radius: 12px;
-    padding: 6px 10px;
-    box-shadow: inset 0 0 0 2px #dfe4ea;
+    padding: 4px 8px;
   }
-  button.tool {
+  .gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: center;
+  }
+  .main {
+    display: flex;
+    gap: var(--gap);
+    min-height: 0;
+    min-width: 0;
+  }
+  .rail {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 4px;
+    background: #f1f2f6;
+    border-radius: 12px;
+    padding: 4px;
+    overflow: hidden;
+  }
+  .canvas-wrap {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  canvas {
+    background: white;
+    border: 3px solid #2d3436;
+    border-radius: 10px;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    aspect-ratio: 1200 / 700;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  button.tool, button.pic {
     border: none;
     background: #dfe4ea;
-    border-radius: 10px;
-    width: 44px;
-    height: 44px;
-    font-size: 20px;
+    border-radius: 8px;
+    width: var(--btn);
+    height: var(--btn);
+    font-size: calc(var(--btn) * 0.5);
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     transition: transform 0.15s;
+    flex: 0 0 auto;
   }
-  button.tool:hover { transform: scale(1.1); }
+  button.pic { background: white; box-shadow: inset 0 0 0 2px #dfe4ea; }
+  button.tool:hover, button.pic:hover { transform: scale(1.1); }
+  button.pic:hover { box-shadow: inset 0 0 0 2px #6C5CE7; }
   button.tool.active {
     background: #6C5CE7;
     color: white;
     box-shadow: 0 0 0 3px #a29bfe;
   }
   .swatch {
-    width: 30px;
-    height: 30px;
+    width: calc(var(--btn) * 0.62);
+    height: calc(var(--btn) * 0.62);
     border-radius: 50%;
-    border: 3px solid white;
+    border: 2px solid white;
     box-shadow: 0 0 0 2px #dfe4ea;
     cursor: pointer;
+    flex: 0 0 auto;
   }
   .swatch.active { box-shadow: 0 0 0 3px #2d3436; transform: scale(1.15); }
   input[type=color] {
-    width: 40px;
-    height: 34px;
+    width: calc(var(--btn) * 0.85);
+    height: calc(var(--btn) * 0.62);
     border: none;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
     background: none;
+    padding: 0;
+    flex: 0 0 auto;
   }
-  input[type=range] { width: 90px; }
-  label.small { font-size: 12px; color: #636e72; margin-right: 2px; }
+  input[type=range] { width: clamp(60px, 10vw, 110px); }
+  label.small { font-size: 11px; color: #636e72; white-space: nowrap; }
   button.action {
     border: none;
-    border-radius: 10px;
-    padding: 10px 16px;
+    border-radius: 8px;
+    padding: 0 10px;
+    height: var(--btn);
     font-weight: bold;
     cursor: pointer;
     color: white;
-    font-size: 14px;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
   }
   #undoBtn { background: #fdcb6e; color: #2d3436; }
   #clearBtn { background: #ff7675; }
   #saveBtn { background: #00b894; }
-  #fillToggle { background: #74b9ff; color: #2d3436; }
+  #fillToggle { background: #74b9ff; color: #2d3436; width: var(--btn); padding: 0; }
   #fillToggle.active { background: #0984e3; color: white; }
-  canvas {
-    background: white;
-    border: 4px solid #2d3436;
-    border-radius: 14px;
-    width: 100%;
-    height: auto;
-    touch-action: none;
-    cursor: crosshair;
-  }
-  .gallery {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-    background: #f1f2f6;
-    border-radius: 14px;
-    padding: 10px;
-  }
-  .gallery-title {
-    width: 100%;
-    text-align: center;
-    font-size: 13px;
-    color: #636e72;
-    font-weight: bold;
-    margin-bottom: 2px;
-  }
-  button.pic {
-    border: none;
-    background: white;
-    border-radius: 12px;
-    padding: 8px 14px;
-    font-size: 26px;
-    cursor: pointer;
-    box-shadow: inset 0 0 0 2px #dfe4ea;
-    transition: transform 0.15s;
-  }
-  button.pic:hover { transform: scale(1.12); box-shadow: inset 0 0 0 2px #6C5CE7; }
-  button.pic span {
-    display: block;
-    font-size: 11px;
-    color: #636e72;
-    margin-top: 2px;
+
+  @media (orientation: portrait) {
+    #app { height: auto; max-height: 100%; grid-template-rows: auto auto auto; }
+    .main { flex-direction: column; }
+    .rail {
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-height: none;
+    }
+    .canvas-wrap { flex: 0 1 auto; }
   }
 </style>
 </head>
 <body>
 
-<h1>🎨 Superritverktyget 🖌️</h1>
-
 <div id="app">
 
-  <div class="gallery">
-    <div class="gallery-title">Välj en målarbild att fylla i, eller rita helt fritt ✨</div>
-    <button class="pic" data-pic="blank">📄<span>Tom sida</span></button>
-    <button class="pic" data-pic="house">🏠<span>Hus</span></button>
-    <button class="pic" data-pic="flower">🌸<span>Blomma</span></button>
-    <button class="pic" data-pic="fish">🐟<span>Fisk</span></button>
-    <button class="pic" data-pic="robot">🤖<span>Robot</span></button>
-    <button class="pic" data-pic="cat">🐱<span>Katt</span></button>
-    <button class="pic" data-pic="rocket">🚀<span>Rymdraket</span></button>
-    <button class="pic" data-pic="butterfly">🦋<span>Fjäril</span></button>
+  <div class="topbar">
+    <h1>🎨 Superritverktyget</h1>
+    <div class="gallery">
+      <button class="pic" data-pic="blank" title="Tom sida">📄</button>
+      <button class="pic" data-pic="house" title="Hus">🏠</button>
+      <button class="pic" data-pic="flower" title="Blomma">🌸</button>
+      <button class="pic" data-pic="fish" title="Fisk">🐟</button>
+      <button class="pic" data-pic="robot" title="Robot">🤖</button>
+      <button class="pic" data-pic="cat" title="Katt">🐱</button>
+      <button class="pic" data-pic="rocket" title="Rymdraket">🚀</button>
+      <button class="pic" data-pic="butterfly" title="Fjäril">🦋</button>
+    </div>
   </div>
 
-  <div class="toolbar">
-    <div class="group">
+  <div class="main">
+    <div class="rail rail-left">
       <button class="tool active" data-tool="pen" title="Penna">✏️</button>
       <button class="tool" data-tool="bucket" title="Fyll med färg">🪣</button>
       <button class="tool" data-tool="line" title="Linje">📏</button>
@@ -176,35 +201,32 @@
       <button class="tool" data-tool="eraser" title="Suddgummi">🧽</button>
     </div>
 
-    <div class="group">
-      <button id="fillToggle" class="action" title="Fylld form">Fyll: Av</button>
+    <div class="canvas-wrap">
+      <canvas id="canvas" width="1200" height="700"></canvas>
     </div>
 
-    <div class="group">
-      <span class="swatch active" style="background:#2d3436" data-color="#2d3436"></span>
-      <span class="swatch" style="background:#e84118" data-color="#e84118"></span>
-      <span class="swatch" style="background:#fbc531" data-color="#fbc531"></span>
-      <span class="swatch" style="background:#4cd137" data-color="#4cd137"></span>
-      <span class="swatch" style="background:#00a8ff" data-color="#00a8ff"></span>
-      <span class="swatch" style="background:#9c88ff" data-color="#9c88ff"></span>
-      <span class="swatch" style="background:#ff69b4" data-color="#ff69b4"></span>
-      <span class="swatch" style="background:#ffffff" data-color="#ffffff"></span>
+    <div class="rail rail-right">
+      <span class="swatch active" style="background:#2d3436" data-color="#2d3436" title="Svart"></span>
+      <span class="swatch" style="background:#e84118" data-color="#e84118" title="Röd"></span>
+      <span class="swatch" style="background:#fbc531" data-color="#fbc531" title="Gul"></span>
+      <span class="swatch" style="background:#4cd137" data-color="#4cd137" title="Grön"></span>
+      <span class="swatch" style="background:#00a8ff" data-color="#00a8ff" title="Blå"></span>
+      <span class="swatch" style="background:#9c88ff" data-color="#9c88ff" title="Lila"></span>
+      <span class="swatch" style="background:#ff69b4" data-color="#ff69b4" title="Rosa"></span>
+      <span class="swatch" style="background:#ffffff" data-color="#ffffff" title="Vit"></span>
       <input type="color" id="colorPicker" value="#2d3436" title="Egen färg">
-    </div>
-
-    <div class="group">
-      <label class="small">Storlek</label>
-      <input type="range" id="sizeRange" min="1" max="50" value="6">
-    </div>
-
-    <div class="group">
-      <button id="undoBtn" class="action">↩️ Ångra</button>
-      <button id="clearBtn" class="action">🗑️ Rensa</button>
-      <button id="saveBtn" class="action">💾 Spara</button>
     </div>
   </div>
 
-  <canvas id="canvas" width="1200" height="700"></canvas>
+  <div class="bottombar">
+    <button id="fillToggle" class="action" title="Fylld form">Fyll: Av</button>
+    <label class="small">Storlek</label>
+    <input type="range" id="sizeRange" min="1" max="50" value="6">
+    <button id="undoBtn" class="action">↩️ Ångra</button>
+    <button id="clearBtn" class="action">🗑️ Rensa</button>
+    <button id="saveBtn" class="action">💾 Spara</button>
+  </div>
+
 </div>
 
 <script>
