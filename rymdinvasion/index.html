@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Rymdinvasion 👾</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
+    background: linear-gradient(135deg, #6C5CE7, #00CEC9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+  h1 {
+    color: #2d3436;
+    margin: 0;
+    font-size: clamp(14px, 2.4vh, 22px);
+    white-space: nowrap;
+  }
+  #app {
+    background: white;
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    max-width: 1100px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f1f2f6;
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .diff-group {
+    display: flex;
+    gap: 4px;
+    background: white;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  button.diff {
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-weight: bold;
+    font-size: clamp(11px, 1.6vh, 14px);
+    cursor: pointer;
+    color: #636e72;
+  }
+  button.diff.active { background: #6C5CE7; color: white; }
+  .stats {
+    font-weight: bold;
+    color: #2d3436;
+    font-size: clamp(12px, 1.8vh, 15px);
+    white-space: nowrap;
+  }
+  button.action {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #2d3436;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
+    background: #fdcb6e;
+  }
+  .board-wrap {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    overflow: hidden;
+  }
+  canvas {
+    background: #1e1b3a;
+    border: 3px solid #2d3436;
+    border-radius: 10px;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: pointer;
+  }
+  #overOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(45,52,54,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #overOverlay.hidden { display: none; }
+  .over-card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 28px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    max-width: 360px;
+  }
+  .over-card .emoji { font-size: 3rem; margin-bottom: 8px; }
+  .over-card p { color: #2d3436; font-size: 1.1rem; margin: 8px 0 20px; }
+  .over-card button {
+    background: #00b894;
+    color: white;
+    font-size: 1rem;
+    padding: 10px 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <h1>👾 Rymdinvasion</h1>
+    <div class="diff-group">
+      <button class="diff" data-diff="easy">Lätt</button>
+      <button class="diff active" data-diff="medium">Mellan</button>
+      <button class="diff" data-diff="hard">Svår</button>
+    </div>
+    <div class="stats">Poäng: <span id="score">0</span></div>
+    <div class="stats">Liv: <span id="lives">3</span></div>
+    <button id="restartBtn" class="action">🔄 Ny omgång</button>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+</div>
+
+<div id="overOverlay" class="hidden">
+  <div class="over-card">
+    <div class="emoji" id="overEmoji">👾</div>
+    <div><strong id="overTitle">Game over!</strong></div>
+    <p>Du fick <span id="overScore"></span> poäng</p>
+    <button id="playAgainBtn" class="action">Spela igen</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const overOverlay = document.getElementById('overOverlay');
+const overScoreEl = document.getElementById('overScore');
+const overTitleEl = document.getElementById('overTitle');
+const overEmojiEl = document.getElementById('overEmoji');
+
+const SETTINGS = {
+  easy:   { speed: 34, fireMin: 1700, fireMax: 3000, lives: 4 },
+  medium: { speed: 55, fireMin: 1100, fireMax: 2100, lives: 3 },
+  hard:   { speed: 82, fireMin: 700,  fireMax: 1500, lives: 3 },
+};
+const ALIEN_ROWS = 4;
+const ALIEN_COLS = 8;
+const ALIEN_EMOJI = ['👾', '👽', '🛸', '👾'];
+
+let difficulty = 'medium';
+let W = 0, H = 0;
+let ship = { x: 0, y: 0, w: 0, h: 0 };
+let aliens = [];
+let alienDir = 1;
+let alienSpeed = 0;
+let stepDown = 0;
+let playerBullets = [];
+let alienBullets = [];
+let score = 0, lives = 3;
+let running = false;
+let rafId = null;
+let lastTime = 0;
+let pointerX = null;
+let firing = false;
+let fireCooldown = 0;
+let nextAlienShot = 0;
+const keys = { left: false, right: false };
+
+function computeLayout() {
+  const wrap = canvas.parentElement;
+  W = Math.max(1, Math.round(wrap.clientWidth));
+  H = Math.max(1, Math.round(wrap.clientHeight));
+  canvas.width = W;
+  canvas.height = H;
+
+  ship.w = Math.max(28, W * 0.08);
+  ship.h = ship.w * 0.7;
+  ship.y = H - ship.h - 10;
+  ship.x = (W - ship.w) / 2;
+
+  const pad = Math.max(4, W * 0.012);
+  const alienW = (W - pad * (ALIEN_COLS + 1)) / ALIEN_COLS;
+  const alienH = Math.min(alienW, H * 0.09);
+  const top = H * 0.08;
+
+  aliens = [];
+  for (let r = 0; r < ALIEN_ROWS; r++) {
+    for (let c = 0; c < ALIEN_COLS; c++) {
+      aliens.push({
+        x: pad + c * (alienW + pad),
+        y: top + r * (alienH + pad),
+        w: alienW,
+        h: alienH,
+        emoji: ALIEN_EMOJI[r % ALIEN_EMOJI.length],
+        alive: true,
+      });
+    }
+  }
+  stepDown = alienH * 0.7;
+  alienDir = 1;
+  alienSpeed = SETTINGS[difficulty].speed * (W / 800);
+  playerBullets = [];
+  alienBullets = [];
+}
+
+function scheduleAlienShot(now) {
+  const { fireMin, fireMax } = SETTINGS[difficulty];
+  nextAlienShot = now + fireMin + Math.random() * (fireMax - fireMin);
+}
+
+function resetGame() {
+  computeLayout();
+  score = 0;
+  lives = SETTINGS[difficulty].lives;
+  scoreEl.textContent = '0';
+  livesEl.textContent = String(lives);
+  overOverlay.classList.add('hidden');
+  running = true;
+  lastTime = performance.now();
+  scheduleAlienShot(lastTime);
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(loop);
+}
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function aliveAliens() {
+  return aliens.filter(a => a.alive);
+}
+
+function bottomMostPerColumn() {
+  const cols = {};
+  aliens.forEach(a => {
+    if (!a.alive) return;
+    const key = Math.round(a.x);
+    if (!cols[key] || a.y > cols[key].y) cols[key] = a;
+  });
+  return Object.values(cols);
+}
+
+function update(dt, now) {
+  if (pointerX !== null) {
+    ship.x = clamp(pointerX - ship.w / 2, 0, W - ship.w);
+  } else {
+    const step = W * 0.9 * dt;
+    if (keys.left) ship.x = clamp(ship.x - step, 0, W - ship.w);
+    if (keys.right) ship.x = clamp(ship.x + step, 0, W - ship.w);
+  }
+
+  fireCooldown -= dt * 1000;
+  if (firing && fireCooldown <= 0) {
+    playerBullets.push({ x: ship.x + ship.w / 2 - 2, y: ship.y, w: 4, h: 14 });
+    fireCooldown = 320;
+  }
+
+  playerBullets.forEach(b => b.y -= H * 1.1 * dt);
+  playerBullets = playerBullets.filter(b => b.y + b.h > 0);
+
+  alienBullets.forEach(b => b.y += H * 0.5 * dt);
+  alienBullets = alienBullets.filter(b => b.y < H);
+
+  const alive = aliveAliens();
+  if (alive.length) {
+    let hitEdge = false;
+    for (const a of alive) {
+      if ((a.x + alienDir * alienSpeed * dt) < 4 || (a.x + a.w + alienDir * alienSpeed * dt) > W - 4) {
+        hitEdge = true;
+        break;
+      }
+    }
+    if (hitEdge) {
+      alienDir *= -1;
+      aliens.forEach(a => { if (a.alive) a.y += stepDown; });
+      alienSpeed *= 1.04;
+    } else {
+      aliens.forEach(a => { if (a.alive) a.x += alienDir * alienSpeed * dt; });
+    }
+
+    for (const a of alive) {
+      if (a.y + a.h >= ship.y) {
+        endGame(false);
+        return;
+      }
+    }
+  }
+
+  if (now >= nextAlienShot) {
+    const shooters = bottomMostPerColumn();
+    if (shooters.length) {
+      const shooter = shooters[Math.floor(Math.random() * shooters.length)];
+      alienBullets.push({ x: shooter.x + shooter.w / 2 - 3, y: shooter.y + shooter.h, w: 6, h: 12 });
+    }
+    scheduleAlienShot(now);
+  }
+
+  for (const bullet of playerBullets) {
+    for (const a of aliens) {
+      if (!a.alive) continue;
+      if (bullet.x < a.x + a.w && bullet.x + bullet.w > a.x &&
+          bullet.y < a.y + a.h && bullet.y + bullet.h > a.y) {
+        a.alive = false;
+        bullet.hit = true;
+        score += 10;
+        scoreEl.textContent = String(score);
+        break;
+      }
+    }
+  }
+  playerBullets = playerBullets.filter(b => !b.hit);
+
+  for (const bullet of alienBullets) {
+    if (bullet.x < ship.x + ship.w && bullet.x + bullet.w > ship.x &&
+        bullet.y < ship.y + ship.h && bullet.y + bullet.h > ship.y) {
+      bullet.hit = true;
+      lives--;
+      livesEl.textContent = String(lives);
+      if (lives <= 0) { endGame(false); return; }
+    }
+  }
+  alienBullets = alienBullets.filter(b => !b.hit);
+
+  if (aliveAliens().length === 0) {
+    endGame(true);
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#1e1b3a';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.font = `${Math.min(aliens[0]?.w || 30, aliens[0]?.h || 30) * 0.9}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  aliens.forEach(a => {
+    if (!a.alive) return;
+    ctx.fillText(a.emoji, a.x + a.w / 2, a.y + a.h / 2 + 1);
+  });
+
+  ctx.fillStyle = '#fdcb6e';
+  playerBullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+  ctx.fillStyle = '#ff7675';
+  alienBullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+  ctx.fillStyle = '#6C5CE7';
+  ctx.beginPath();
+  ctx.moveTo(ship.x + ship.w / 2, ship.y);
+  ctx.lineTo(ship.x, ship.y + ship.h);
+  ctx.lineTo(ship.x + ship.w, ship.y + ship.h);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function loop(now) {
+  if (!running) return;
+  const dt = Math.min(0.032, (now - lastTime) / 1000);
+  lastTime = now;
+  update(dt, now);
+  draw();
+  rafId = requestAnimationFrame(loop);
+}
+
+function endGame(won) {
+  running = false;
+  cancelAnimationFrame(rafId);
+  overEmojiEl.textContent = won ? '🎉' : '👾';
+  overTitleEl.textContent = won ? 'Du vann!' : 'Game over!';
+  overScoreEl.textContent = String(score);
+  overOverlay.classList.remove('hidden');
+}
+
+document.querySelectorAll('.diff').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+    resetGame();
+  });
+});
+
+document.getElementById('restartBtn').addEventListener('click', resetGame);
+document.getElementById('playAgainBtn').addEventListener('click', resetGame);
+
+function updatePointer(e) {
+  const rect = canvas.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  pointerX = ((clientX - rect.left) / rect.width) * W;
+}
+canvas.addEventListener('mousemove', updatePointer);
+canvas.addEventListener('mousedown', (e) => { updatePointer(e); firing = true; });
+canvas.addEventListener('mouseup', () => { firing = false; });
+canvas.addEventListener('mouseleave', () => { pointerX = null; firing = false; });
+canvas.addEventListener('touchmove', (e) => { e.preventDefault(); updatePointer(e); }, { passive: false });
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); updatePointer(e); firing = true; }, { passive: false });
+canvas.addEventListener('touchend', (e) => { e.preventDefault(); firing = false; }, { passive: false });
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+  if (e.key === ' ' || e.key === 'ArrowUp') { e.preventDefault(); firing = true; }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+  if (e.key === ' ' || e.key === 'ArrowUp') firing = false;
+});
+
+let resizeTimer = null;
+new ResizeObserver(() => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(resetGame, 150);
+}).observe(canvas.parentElement);
+
+resetGame();
+</script>
+
+</body>
+</html>
