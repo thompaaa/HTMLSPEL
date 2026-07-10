@@ -210,13 +210,13 @@ function pipeSettings() {
   };
 }
 
-function spawnPipe(offsetX) {
+function spawnPipe() {
   const { gap, width } = pipeSettings();
   const margin = H * 0.08;
   const minGapTop = margin;
   const maxGapTop = Math.max(minGapTop + 10, groundY - margin - gap);
   const gapTop = minGapTop + Math.random() * (maxGapTop - minGapTop);
-  pipes.push({ x: W + offsetX, w: width, gapTop, gapBottom: gapTop + gap, scored: false });
+  pipes.push({ x: W, w: width, gapTop, gapBottom: gapTop + gap, scored: false });
 }
 
 function resetGame() {
@@ -229,7 +229,7 @@ function resetGame() {
   scoreEl.textContent = '0';
   bestEl.textContent = String(best);
   overOverlay.classList.add('hidden');
-  spawnPipe(W * 0.35);
+  spawnPipe();
   running = true;
   lastTime = performance.now();
   cancelAnimationFrame(rafId);
@@ -259,7 +259,7 @@ function update(dt) {
   spawnTimer += dt;
   if (spawnTimer >= spawnInterval) {
     spawnTimer = 0;
-    spawnPipe(0);
+    spawnPipe();
   }
 
   pipes.forEach(p => p.x -= speed * dt);
