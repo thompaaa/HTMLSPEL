@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Memory 🧠</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
+    background: linear-gradient(135deg, #6C5CE7, #00CEC9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+  h1 {
+    color: #2d3436;
+    margin: 0;
+    font-size: clamp(14px, 2.4vh, 22px);
+    white-space: nowrap;
+  }
+  #app {
+    background: white;
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    max-width: 1100px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f1f2f6;
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .diff-group {
+    display: flex;
+    gap: 4px;
+    background: white;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  button.diff {
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-weight: bold;
+    font-size: clamp(11px, 1.6vh, 14px);
+    cursor: pointer;
+    color: #636e72;
+  }
+  button.diff.active { background: #6C5CE7; color: white; }
+  .stats {
+    font-weight: bold;
+    color: #2d3436;
+    font-size: clamp(12px, 1.8vh, 15px);
+    white-space: nowrap;
+  }
+  button.action {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: white;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
+    background: #fdcb6e;
+    color: #2d3436;
+  }
+  .board-wrap {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 4px;
+  }
+  #board {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    gap: clamp(4px, 1.2vw, 12px);
+    container-type: size;
+  }
+  .card {
+    perspective: 1000px;
+    cursor: pointer;
+  }
+  .card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.4s;
+    transform-style: preserve-3d;
+  }
+  .card.flipped .card-inner, .card.matched .card-inner {
+    transform: rotateY(180deg);
+  }
+  .card-front, .card-back {
+    position: absolute;
+    inset: 0;
+    border-radius: clamp(6px, 1.5vw, 14px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backface-visibility: hidden;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  }
+  .card-front {
+    background: linear-gradient(135deg, #6C5CE7, #a29bfe);
+  }
+  .card-front::after {
+    content: "❓";
+    font-size: 8vmin;
+    font-size: 40cqmin;
+    opacity: 0.85;
+  }
+  .card-back {
+    background: white;
+    transform: rotateY(180deg);
+    font-size: 8vmin;
+    font-size: 40cqmin;
+  }
+  .card.matched .card-back {
+    background: #d4f8e8;
+    box-shadow: 0 0 0 3px #00b894 inset;
+  }
+  #winOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(45,52,54,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #winOverlay.hidden { display: none; }
+  .win-card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 28px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    max-width: 360px;
+  }
+  .win-card .emoji { font-size: 3rem; margin-bottom: 8px; }
+  .win-card p { color: #2d3436; font-size: 1.1rem; margin: 8px 0 20px; }
+  .win-card button {
+    background: #00b894;
+    font-size: 1rem;
+    padding: 10px 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <h1>🧠 Memory</h1>
+    <div class="diff-group">
+      <button class="diff active" data-diff="easy">Lätt</button>
+      <button class="diff" data-diff="medium">Mellan</button>
+      <button class="diff" data-diff="hard">Svår</button>
+    </div>
+    <div class="stats">Drag: <span id="moves">0</span></div>
+    <button id="restartBtn" class="action">🔄 Ny omgång</button>
+  </div>
+
+  <div class="board-wrap">
+    <div id="board"></div>
+  </div>
+</div>
+
+<div id="winOverlay" class="hidden">
+  <div class="win-card">
+    <div class="emoji">🎉</div>
+    <div><strong>Bra jobbat!</strong></div>
+    <p>Du klarade det på <span id="winMoves"></span> drag</p>
+    <button id="playAgainBtn" class="action">Spela igen</button>
+  </div>
+</div>
+
+<script>
+const EMOJIS = ['🐶','🐱','🐰','🦊','🐻','🐼','🦁','🐯','🐨','🐸','🐷','🐵','🦄','🐔','🐧','🦋'];
+
+// cols/rows är definierade för liggande (landscape) skärmar och
+// byts plats (transponeras) automatiskt i stående läge.
+const DIFFICULTIES = {
+  easy:   { cols: 4, rows: 3 },
+  medium: { cols: 4, rows: 4 },
+  hard:   { cols: 6, rows: 4 },
+};
+
+const board = document.getElementById('board');
+const movesEl = document.getElementById('moves');
+const winOverlay = document.getElementById('winOverlay');
+const winMovesEl = document.getElementById('winMoves');
+
+let difficulty = 'easy';
+let deck = [];
+let flipped = [];
+let matchedCount = 0;
+let moves = 0;
+let lock = false;
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function isPortrait() {
+  return window.matchMedia('(orientation: portrait)').matches;
+}
+
+function applyGridShape() {
+  const { cols, rows } = DIFFICULTIES[difficulty];
+  const [c, r] = isPortrait() ? [rows, cols] : [cols, rows];
+  board.style.gridTemplateColumns = `repeat(${c}, 1fr)`;
+  board.style.gridTemplateRows = `repeat(${r}, 1fr)`;
+}
+
+function newGame() {
+  const { cols, rows } = DIFFICULTIES[difficulty];
+  const pairCount = (cols * rows) / 2;
+  const chosen = EMOJIS.slice(0, pairCount);
+  deck = shuffle([...chosen, ...chosen]);
+
+  flipped = [];
+  matchedCount = 0;
+  moves = 0;
+  lock = false;
+  movesEl.textContent = '0';
+  winOverlay.classList.add('hidden');
+
+  board.innerHTML = '';
+  deck.forEach((emoji, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.emoji = emoji;
+    card.dataset.idx = i;
+    card.innerHTML = `
+      <div class="card-inner">
+        <div class="card-front"></div>
+        <div class="card-back">${emoji}</div>
+      </div>
+    `;
+    card.addEventListener('click', () => onCardClick(card));
+    board.appendChild(card);
+  });
+
+  applyGridShape();
+}
+
+function onCardClick(card) {
+  if (lock) return;
+  if (card.classList.contains('flipped') || card.classList.contains('matched')) return;
+  if (flipped.length >= 2) return;
+
+  card.classList.add('flipped');
+  flipped.push(card);
+
+  if (flipped.length === 2) {
+    moves++;
+    movesEl.textContent = String(moves);
+    const [a, b] = flipped;
+    if (a.dataset.emoji === b.dataset.emoji) {
+      a.classList.add('matched');
+      b.classList.add('matched');
+      flipped = [];
+      matchedCount++;
+      if (matchedCount === deck.length / 2) {
+        setTimeout(showWin, 500);
+      }
+    } else {
+      lock = true;
+      setTimeout(() => {
+        a.classList.remove('flipped');
+        b.classList.remove('flipped');
+        flipped = [];
+        lock = false;
+      }, 800);
+    }
+  }
+}
+
+function showWin() {
+  winMovesEl.textContent = String(moves);
+  winOverlay.classList.remove('hidden');
+}
+
+document.querySelectorAll('.diff').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+    newGame();
+  });
+});
+
+document.getElementById('restartBtn').addEventListener('click', newGame);
+document.getElementById('playAgainBtn').addEventListener('click', newGame);
+
+let orientTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(orientTimer);
+  orientTimer = setTimeout(applyGridShape, 120);
+});
+
+newGame();
+</script>
+
+</body>
+</html>
