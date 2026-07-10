@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Räknelek ➕</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
+    background: linear-gradient(135deg, #6C5CE7, #00CEC9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+  h1 {
+    color: #2d3436;
+    margin: 0;
+    font-size: clamp(14px, 2.4vh, 22px);
+    white-space: nowrap;
+  }
+  #app {
+    background: white;
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    max-width: 900px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f1f2f6;
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .diff-group {
+    display: flex;
+    gap: 4px;
+    background: white;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  button.diff {
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-weight: bold;
+    font-size: clamp(11px, 1.6vh, 14px);
+    cursor: pointer;
+    color: #636e72;
+  }
+  button.diff.active { background: #6C5CE7; color: white; }
+  .stats {
+    font-weight: bold;
+    color: #2d3436;
+    font-size: clamp(12px, 1.8vh, 15px);
+    white-space: nowrap;
+  }
+  button.action {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #2d3436;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
+    background: #fdcb6e;
+  }
+  .board-wrap {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    overflow: hidden;
+    padding: 4px;
+  }
+  .quiz {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(6px, 1.6vh, 16px);
+  }
+  #aid {
+    font-size: clamp(16px, 4vw, 34px);
+    min-height: 1.2em;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+  #question {
+    font-size: clamp(28px, 7vw, 60px);
+    font-weight: bold;
+    color: #2d3436;
+    text-align: center;
+  }
+  #answers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: clamp(8px, 2vw, 18px);
+    width: min(100%, 480px);
+    flex: 1;
+    min-height: 0;
+  }
+  button.ans {
+    border: none;
+    border-radius: 14px;
+    background: #dfe4ea;
+    font-size: clamp(20px, 5vw, 34px);
+    font-weight: bold;
+    color: #2d3436;
+    cursor: pointer;
+  }
+  button.ans.correct { background: #00b894; color: white; }
+  button.ans.wrong { background: #ff7675; color: white; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <h1>➕ Räknelek</h1>
+    <div class="diff-group">
+      <button class="diff active" data-diff="easy">Lätt</button>
+      <button class="diff" data-diff="medium">Mellan</button>
+      <button class="diff" data-diff="hard">Svår</button>
+    </div>
+    <div class="stats">Rätt: <span id="score">0</span></div>
+    <button id="restartBtn" class="action">🔄 Ny omgång</button>
+  </div>
+
+  <div class="board-wrap">
+    <div class="quiz">
+      <div id="aid"></div>
+      <div id="question">?</div>
+      <div id="answers"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const scoreEl = document.getElementById('score');
+const questionEl = document.getElementById('question');
+const aidEl = document.getElementById('aid');
+const answersEl = document.getElementById('answers');
+
+let difficulty = 'easy';
+let score = 0;
+let currentAnswer = 0;
+let locked = false;
+
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function generateOptions(correct) {
+  const set = new Set([correct]);
+  let guard = 0;
+  while (set.size < 4 && guard < 50) {
+    guard++;
+    const delta = randInt(-6, 6);
+    let val = correct + delta;
+    if (val < 0) val = correct + Math.abs(delta) + 1;
+    set.add(val);
+  }
+  return shuffle([...set]);
+}
+
+function renderAid(a, b) {
+  return `${'🍎'.repeat(a)} <strong>+</strong> ${'🍎'.repeat(b)}`;
+}
+
+function newQuestion() {
+  let a, b, op, answer;
+  if (difficulty === 'easy') {
+    a = randInt(1, 10);
+    b = randInt(1, 10);
+    op = '+';
+    answer = a + b;
+  } else if (difficulty === 'medium') {
+    op = Math.random() < 0.5 ? '+' : '-';
+    a = randInt(1, 20);
+    b = randInt(1, 20);
+    if (op === '-' && b > a) [a, b] = [b, a];
+    answer = op === '+' ? a + b : a - b;
+  } else {
+    a = randInt(1, 10);
+    b = randInt(1, 10);
+    op = '×';
+    answer = a * b;
+  }
+
+  currentAnswer = answer;
+  questionEl.textContent = `${a} ${op} ${b} = ?`;
+  aidEl.innerHTML = difficulty === 'easy' ? renderAid(a, b) : '';
+
+  const options = generateOptions(answer);
+  answersEl.innerHTML = '';
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'ans';
+    btn.textContent = String(opt);
+    btn.addEventListener('click', () => checkAnswer(opt, btn));
+    answersEl.appendChild(btn);
+  });
+  locked = false;
+}
+
+function checkAnswer(opt, btn) {
+  if (locked) return;
+  locked = true;
+  if (opt === currentAnswer) {
+    btn.classList.add('correct');
+    score++;
+    scoreEl.textContent = String(score);
+  } else {
+    btn.classList.add('wrong');
+    [...answersEl.children].forEach(b => {
+      if (Number(b.textContent) === currentAnswer) b.classList.add('correct');
+    });
+  }
+  setTimeout(newQuestion, 900);
+}
+
+document.querySelectorAll('.diff').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+    score = 0;
+    scoreEl.textContent = '0';
+    newQuestion();
+  });
+});
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  score = 0;
+  scoreEl.textContent = '0';
+  newQuestion();
+});
+
+newQuestion();
+</script>
+
+</body>
+</html>

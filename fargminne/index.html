@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Färgminne 🎵</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
+    background: linear-gradient(135deg, #6C5CE7, #00CEC9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+  h1 {
+    color: #2d3436;
+    margin: 0;
+    font-size: clamp(14px, 2.4vh, 22px);
+    white-space: nowrap;
+  }
+  #app {
+    background: white;
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    max-width: 900px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f1f2f6;
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .stats {
+    font-weight: bold;
+    color: #2d3436;
+    font-size: clamp(12px, 1.8vh, 15px);
+    white-space: nowrap;
+  }
+  button.action {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: white;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
+    background: #00b894;
+  }
+  .board-wrap {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 4px;
+  }
+  #board {
+    width: 100%;
+    height: 100%;
+    max-width: min(100%, 100vh);
+    max-height: min(100%, 100vw);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: clamp(6px, 1.5vw, 16px);
+  }
+  .colorBtn {
+    border: none;
+    border-radius: clamp(10px, 2vw, 20px);
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.1s, filter 0.1s;
+    filter: brightness(0.9);
+  }
+  .colorBtn.lit { opacity: 1; filter: brightness(1.25); }
+  .colorBtn:disabled { cursor: default; }
+  #btn-red { background: #e84118; grid-column: 1; grid-row: 1; border-top-left-radius: clamp(20px, 6vw, 60px); }
+  #btn-blue { background: #00a8ff; grid-column: 2; grid-row: 1; border-top-right-radius: clamp(20px, 6vw, 60px); }
+  #btn-green { background: #4cd137; grid-column: 1; grid-row: 2; border-bottom-left-radius: clamp(20px, 6vw, 60px); }
+  #btn-yellow { background: #fbc531; grid-column: 2; grid-row: 2; border-bottom-right-radius: clamp(20px, 6vw, 60px); }
+  #centerLabel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border-radius: 50%;
+    width: clamp(70px, 16vw, 130px);
+    height: clamp(70px, 16vw, 130px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    font-weight: bold;
+    color: #2d3436;
+    pointer-events: none;
+    text-align: center;
+    font-size: clamp(11px, 2vw, 14px);
+  }
+  #centerLabel .big { font-size: clamp(18px, 4vw, 28px); }
+  .board-outer { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  #overOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(45,52,54,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #overOverlay.hidden { display: none; }
+  .over-card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 28px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    max-width: 360px;
+  }
+  .over-card .emoji { font-size: 3rem; margin-bottom: 8px; }
+  .over-card p { color: #2d3436; font-size: 1.1rem; margin: 8px 0 20px; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <h1>🎵 Färgminne</h1>
+    <div class="stats">Nivå: <span id="level">0</span></div>
+    <button id="startBtn" class="action">▶️ Starta</button>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board-outer">
+      <div id="board">
+        <button class="colorBtn" id="btn-red" data-color="red" disabled></button>
+        <button class="colorBtn" id="btn-blue" data-color="blue" disabled></button>
+        <button class="colorBtn" id="btn-green" data-color="green" disabled></button>
+        <button class="colorBtn" id="btn-yellow" data-color="yellow" disabled></button>
+      </div>
+      <div id="centerLabel"><span class="big" id="statusText">?</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="overOverlay" class="hidden">
+  <div class="over-card">
+    <div class="emoji">🎵</div>
+    <div><strong>Game over!</strong></div>
+    <p>Du klarade <span id="overLevel"></span> nivåer</p>
+    <button id="playAgainBtn" class="action">Spela igen</button>
+  </div>
+</div>
+
+<script>
+const COLORS = ['red', 'blue', 'green', 'yellow'];
+const FREQ = { red: 220, blue: 277, green: 330, yellow: 415 };
+
+const levelEl = document.getElementById('level');
+const statusText = document.getElementById('statusText');
+const overOverlay = document.getElementById('overOverlay');
+const overLevelEl = document.getElementById('overLevel');
+const buttons = {};
+COLORS.forEach(c => buttons[c] = document.getElementById('btn-' + c));
+
+let audioCtx = null;
+let sequence = [];
+let playerIndex = 0;
+let accepting = false;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playTone(color, duration = 320) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = FREQ[color];
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration / 1000);
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function lightUp(color, duration = 420) {
+  const el = buttons[color];
+  el.classList.add('lit');
+  playTone(color, duration - 60);
+  return wait(duration).then(() => el.classList.remove('lit'));
+}
+
+async function playSequence() {
+  accepting = false;
+  setButtonsEnabled(false);
+  statusText.textContent = 'Titta...';
+  await wait(400);
+  for (const color of sequence) {
+    await lightUp(color);
+    await wait(180);
+  }
+  statusText.textContent = 'Din tur!';
+  playerIndex = 0;
+  accepting = true;
+  setButtonsEnabled(true);
+}
+
+function setButtonsEnabled(enabled) {
+  COLORS.forEach(c => buttons[c].disabled = !enabled);
+}
+
+function nextRound() {
+  sequence.push(COLORS[Math.floor(Math.random() * COLORS.length)]);
+  levelEl.textContent = String(sequence.length);
+  playSequence();
+}
+
+function onColorClick(color) {
+  if (!accepting) return;
+  lightUp(color, 250);
+  if (color === sequence[playerIndex]) {
+    playerIndex++;
+    if (playerIndex === sequence.length) {
+      accepting = false;
+      setButtonsEnabled(false);
+      statusText.textContent = 'Bra!';
+      setTimeout(nextRound, 700);
+    }
+  } else {
+    gameOver();
+  }
+}
+
+function gameOver() {
+  accepting = false;
+  setButtonsEnabled(false);
+  overLevelEl.textContent = String(sequence.length - 1);
+  overOverlay.classList.remove('hidden');
+}
+
+function startGame() {
+  ensureAudio();
+  sequence = [];
+  overOverlay.classList.add('hidden');
+  statusText.textContent = '...';
+  nextRound();
+}
+
+COLORS.forEach(c => {
+  buttons[c].addEventListener('click', () => onColorClick(c));
+});
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('playAgainBtn').addEventListener('click', startGame);
+</script>
+
+</body>
+</html>
