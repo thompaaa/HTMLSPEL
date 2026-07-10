@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tre i rad ❌⭕</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
+    background: linear-gradient(135deg, #6C5CE7, #00CEC9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+  h1 {
+    color: #2d3436;
+    margin: 0;
+    font-size: clamp(14px, 2.4vh, 22px);
+    white-space: nowrap;
+  }
+  #app {
+    background: white;
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    max-width: 800px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f1f2f6;
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .diff-group {
+    display: flex;
+    gap: 4px;
+    background: white;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  button.diff {
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-weight: bold;
+    font-size: clamp(11px, 1.6vh, 14px);
+    cursor: pointer;
+    color: #636e72;
+  }
+  button.diff.active { background: #6C5CE7; color: white; }
+  .stats {
+    font-weight: bold;
+    color: #2d3436;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
+  }
+  button.action {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #2d3436;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
+    background: #fdcb6e;
+  }
+  .board-wrap {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 4px;
+  }
+  #board {
+    width: min(100%, 100%);
+    height: 100%;
+    aspect-ratio: 1 / 1;
+    max-width: 100%;
+    max-height: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: clamp(6px, 2vw, 14px);
+  }
+  .cell {
+    border: none;
+    background: #dfe4ea;
+    border-radius: clamp(8px, 2vw, 16px);
+    font-size: min(16vw, 16vh);
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2d3436;
+  }
+  .cell:disabled { cursor: default; }
+  .cell.win { background: #d4f8e8; box-shadow: 0 0 0 3px #00b894 inset; }
+  #overOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(45,52,54,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #overOverlay.hidden { display: none; }
+  .over-card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 28px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    max-width: 360px;
+  }
+  .over-card .emoji { font-size: 3rem; margin-bottom: 8px; }
+  .over-card p { color: #2d3436; font-size: 1.1rem; margin: 8px 0 20px; }
+  .over-card button {
+    background: #00b894;
+    color: white;
+    font-size: 1rem;
+    padding: 10px 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <h1>❌⭕ Tre i rad</h1>
+    <div class="diff-group">
+      <button class="diff" data-diff="easy">Lätt</button>
+      <button class="diff active" data-diff="medium">Mellan</button>
+      <button class="diff" data-diff="hard">Svår</button>
+    </div>
+    <div class="stats">Du: <span id="scoreX">0</span> · Datorn: <span id="scoreO">0</span> · Oavgjort: <span id="scoreD">0</span></div>
+    <button id="restartBtn" class="action">🔄 Ny runda</button>
+  </div>
+
+  <div class="board-wrap">
+    <div id="board"></div>
+  </div>
+</div>
+
+<div id="overOverlay" class="hidden">
+  <div class="over-card">
+    <div class="emoji" id="overEmoji">🎉</div>
+    <div><strong id="overTitle"></strong></div>
+    <p>Du: <span id="overX"></span> &nbsp; Datorn: <span id="overO"></span> &nbsp; Oavgjort: <span id="overD"></span></p>
+    <button id="playAgainBtn" class="action">Spela igen</button>
+  </div>
+</div>
+
+<script>
+const WIN_LINES = [
+  [0,1,2],[3,4,5],[6,7,8],
+  [0,3,6],[1,4,7],[2,5,8],
+  [0,4,8],[2,4,6],
+];
+
+const board = document.getElementById('board');
+const scoreXEl = document.getElementById('scoreX');
+const scoreOEl = document.getElementById('scoreO');
+const scoreDEl = document.getElementById('scoreD');
+const overOverlay = document.getElementById('overOverlay');
+const overEmoji = document.getElementById('overEmoji');
+const overTitle = document.getElementById('overTitle');
+const overX = document.getElementById('overX');
+const overO = document.getElementById('overO');
+const overD = document.getElementById('overD');
+
+let difficulty = 'medium';
+let cells = [];
+let state = Array(9).fill(null);
+let locked = false;
+let over = false;
+let scores = { X: 0, O: 0, draw: 0 };
+
+for (let i = 0; i < 9; i++) {
+  const btn = document.createElement('button');
+  btn.className = 'cell';
+  btn.addEventListener('click', () => onCellClick(i));
+  board.appendChild(btn);
+  cells.push(btn);
+}
+
+function checkWinner(b) {
+  for (const line of WIN_LINES) {
+    const [a, c, d] = line;
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return { winner: b[a], line };
+  }
+  if (b.every(v => v)) return { winner: 'draw', line: null };
+  return null;
+}
+
+function emptyCells(b) {
+  const out = [];
+  b.forEach((v, i) => { if (!v) out.push(i); });
+  return out;
+}
+
+function minimax(b, depth, isMax) {
+  const result = checkWinner(b);
+  if (result) {
+    if (result.winner === 'O') return 10 - depth;
+    if (result.winner === 'X') return depth - 10;
+    return 0;
+  }
+  if (isMax) {
+    let best = -Infinity;
+    for (const i of emptyCells(b)) {
+      b[i] = 'O';
+      best = Math.max(best, minimax(b, depth + 1, false));
+      b[i] = null;
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (const i of emptyCells(b)) {
+      b[i] = 'X';
+      best = Math.min(best, minimax(b, depth + 1, true));
+      b[i] = null;
+    }
+    return best;
+  }
+}
+
+function bestMove(b) {
+  let bestScore = -Infinity, move = emptyCells(b)[0];
+  for (const i of emptyCells(b)) {
+    b[i] = 'O';
+    const s = minimax(b, 0, false);
+    b[i] = null;
+    if (s > bestScore) { bestScore = s; move = i; }
+  }
+  return move;
+}
+
+function findWinningMove(b, player) {
+  for (const i of emptyCells(b)) {
+    b[i] = player;
+    const win = checkWinner(b);
+    b[i] = null;
+    if (win && win.winner === player) return i;
+  }
+  return null;
+}
+
+function computerMoveIndex() {
+  const empties = emptyCells(state);
+  if (difficulty === 'easy') {
+    return empties[Math.floor(Math.random() * empties.length)];
+  }
+  if (difficulty === 'medium') {
+    const win = findWinningMove(state, 'O');
+    if (win !== null) return win;
+    const block = findWinningMove(state, 'X');
+    if (block !== null) return block;
+    if (!state[4]) return 4;
+    const corners = [0, 2, 6, 8].filter(i => !state[i]);
+    if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
+    return empties[Math.floor(Math.random() * empties.length)];
+  }
+  return bestMove(state);
+}
+
+function render() {
+  cells.forEach((btn, i) => {
+    btn.textContent = state[i] === 'X' ? '❌' : state[i] === 'O' ? '⭕' : '';
+    btn.disabled = !!state[i] || locked || over;
+    btn.classList.remove('win');
+  });
+}
+
+function onCellClick(i) {
+  if (locked || over || state[i]) return;
+  state[i] = 'X';
+  render();
+  const result = checkWinner(state);
+  if (result) { finishRound(result); return; }
+
+  locked = true;
+  render();
+  setTimeout(() => {
+    const move = computerMoveIndex();
+    state[move] = 'O';
+    render();
+    const result2 = checkWinner(state);
+    if (result2) { finishRound(result2); return; }
+    locked = false;
+    render();
+  }, 450);
+}
+
+function finishRound(result) {
+  over = true;
+  if (result.line) {
+    result.line.forEach(i => cells[i].classList.add('win'));
+  }
+  render();
+
+  if (result.winner === 'draw') {
+    scores.draw++;
+  } else {
+    scores[result.winner]++;
+  }
+  scoreXEl.textContent = String(scores.X);
+  scoreOEl.textContent = String(scores.O);
+  scoreDEl.textContent = String(scores.draw);
+
+  setTimeout(() => {
+    overEmoji.textContent = result.winner === 'X' ? '🎉' : result.winner === 'O' ? '🤖' : '🤝';
+    overTitle.textContent = result.winner === 'X' ? 'Du vann!' : result.winner === 'O' ? 'Datorn vann!' : 'Oavgjort!';
+    overX.textContent = String(scores.X);
+    overO.textContent = String(scores.O);
+    overD.textContent = String(scores.draw);
+    overOverlay.classList.remove('hidden');
+  }, 600);
+}
+
+function newRound() {
+  state = Array(9).fill(null);
+  locked = false;
+  over = false;
+  overOverlay.classList.add('hidden');
+  render();
+}
+
+document.querySelectorAll('.diff').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+    newRound();
+  });
+});
+
+document.getElementById('restartBtn').addEventListener('click', newRound);
+document.getElementById('playAgainBtn').addEventListener('click', newRound);
+
+newRound();
+</script>
+
+</body>
+</html>
