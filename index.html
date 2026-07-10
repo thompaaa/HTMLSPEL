@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>Superritverktyget 🎨</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
+    background: linear-gradient(135deg, #6C5CE7, #00CEC9);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+  }
+  h1 {
+    color: white;
+    text-shadow: 2px 2px 0 #333;
+    margin: 8px 0 16px;
+    font-size: 2rem;
+  }
+  #app {
+    background: white;
+    border-radius: 20px;
+    padding: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 950px;
+    width: 100%;
+  }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    background: #f1f2f6;
+    border-radius: 14px;
+    padding: 10px;
+  }
+  .group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    background: white;
+    border-radius: 12px;
+    padding: 6px 10px;
+    box-shadow: inset 0 0 0 2px #dfe4ea;
+  }
+  button.tool {
+    border: none;
+    background: #dfe4ea;
+    border-radius: 10px;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  button.tool:hover { transform: scale(1.1); }
+  button.tool.active {
+    background: #6C5CE7;
+    color: white;
+    box-shadow: 0 0 0 3px #a29bfe;
+  }
+  .swatch {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 0 2px #dfe4ea;
+    cursor: pointer;
+  }
+  .swatch.active { box-shadow: 0 0 0 3px #2d3436; transform: scale(1.15); }
+  input[type=color] {
+    width: 40px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: none;
+  }
+  input[type=range] { width: 90px; }
+  label.small { font-size: 12px; color: #636e72; margin-right: 2px; }
+  button.action {
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-weight: bold;
+    cursor: pointer;
+    color: white;
+    font-size: 14px;
+  }
+  #undoBtn { background: #fdcb6e; color: #2d3436; }
+  #clearBtn { background: #ff7675; }
+  #saveBtn { background: #00b894; }
+  #fillToggle { background: #74b9ff; color: #2d3436; }
+  #fillToggle.active { background: #0984e3; color: white; }
+  canvas {
+    background: white;
+    border: 4px solid #2d3436;
+    border-radius: 14px;
+    width: 100%;
+    height: auto;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  .gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    background: #f1f2f6;
+    border-radius: 14px;
+    padding: 10px;
+  }
+  .gallery-title {
+    width: 100%;
+    text-align: center;
+    font-size: 13px;
+    color: #636e72;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+  button.pic {
+    border: none;
+    background: white;
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-size: 26px;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 2px #dfe4ea;
+    transition: transform 0.15s;
+  }
+  button.pic:hover { transform: scale(1.12); box-shadow: inset 0 0 0 2px #6C5CE7; }
+  button.pic span {
+    display: block;
+    font-size: 11px;
+    color: #636e72;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+
+<h1>🎨 Superritverktyget 🖌️</h1>
+
+<div id="app">
+
+  <div class="gallery">
+    <div class="gallery-title">Välj en målarbild att fylla i, eller rita helt fritt ✨</div>
+    <button class="pic" data-pic="blank">📄<span>Tom sida</span></button>
+    <button class="pic" data-pic="house">🏠<span>Hus</span></button>
+    <button class="pic" data-pic="flower">🌸<span>Blomma</span></button>
+    <button class="pic" data-pic="fish">🐟<span>Fisk</span></button>
+    <button class="pic" data-pic="robot">🤖<span>Robot</span></button>
+    <button class="pic" data-pic="cat">🐱<span>Katt</span></button>
+    <button class="pic" data-pic="rocket">🚀<span>Rymdraket</span></button>
+    <button class="pic" data-pic="butterfly">🦋<span>Fjäril</span></button>
+  </div>
+
+  <div class="toolbar">
+    <div class="group">
+      <button class="tool active" data-tool="pen" title="Penna">✏️</button>
+      <button class="tool" data-tool="bucket" title="Fyll med färg">🪣</button>
+      <button class="tool" data-tool="line" title="Linje">📏</button>
+      <button class="tool" data-tool="rect" title="Rektangel">⬛</button>
+      <button class="tool" data-tool="circle" title="Cirkel">⚪</button>
+      <button class="tool" data-tool="triangle" title="Triangel">🔺</button>
+      <button class="tool" data-tool="star" title="Stjärna">⭐</button>
+      <button class="tool" data-tool="heart" title="Hjärta">❤️</button>
+      <button class="tool" data-tool="eraser" title="Suddgummi">🧽</button>
+    </div>
+
+    <div class="group">
+      <button id="fillToggle" class="action" title="Fylld form">Fyll: Av</button>
+    </div>
+
+    <div class="group">
+      <span class="swatch active" style="background:#2d3436" data-color="#2d3436"></span>
+      <span class="swatch" style="background:#e84118" data-color="#e84118"></span>
+      <span class="swatch" style="background:#fbc531" data-color="#fbc531"></span>
+      <span class="swatch" style="background:#4cd137" data-color="#4cd137"></span>
+      <span class="swatch" style="background:#00a8ff" data-color="#00a8ff"></span>
+      <span class="swatch" style="background:#9c88ff" data-color="#9c88ff"></span>
+      <span class="swatch" style="background:#ff69b4" data-color="#ff69b4"></span>
+      <span class="swatch" style="background:#ffffff" data-color="#ffffff"></span>
+      <input type="color" id="colorPicker" value="#2d3436" title="Egen färg">
+    </div>
+
+    <div class="group">
+      <label class="small">Storlek</label>
+      <input type="range" id="sizeRange" min="1" max="50" value="6">
+    </div>
+
+    <div class="group">
+      <button id="undoBtn" class="action">↩️ Ångra</button>
+      <button id="clearBtn" class="action">🗑️ Rensa</button>
+      <button id="saveBtn" class="action">💾 Spara</button>
+    </div>
+  </div>
+
+  <canvas id="canvas" width="1200" height="700"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+ctx.lineCap = 'round';
+ctx.lineJoin = 'round';
+
+let tool = 'pen';
+let color = '#2d3436';
+let size = 6;
+let filled = false;
+let drawing = false;
+let startX = 0, startY = 0;
+let snapshot = null;
+
+// ---------- Historik (ångra) ----------
+let history = [];
+function saveHistory() {
+  history.push(canvas.toDataURL());
+  if (history.length > 25) history.shift();
+}
+
+function whiteCanvas() {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// ---------- Hjälpfigurer ----------
+function drawStar(cx, cy, r) {
+  const spikes = 5;
+  const step = Math.PI / spikes;
+  ctx.beginPath();
+  for (let i = 0; i < 2 * spikes; i++) {
+    const rad = (i % 2 === 0) ? r : r / 2.3;
+    const ang = i * step - Math.PI / 2;
+    const x = cx + Math.cos(ang) * rad;
+    const y = cy + Math.sin(ang) * rad;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
+function drawHeart(cx, cy, r) {
+  ctx.beginPath();
+  const topCurveHeight = r * 0.3;
+  ctx.moveTo(cx, cy + topCurveHeight);
+  ctx.bezierCurveTo(cx, cy, cx - r, cy, cx - r, cy + topCurveHeight);
+  ctx.bezierCurveTo(cx - r, cy + (r + topCurveHeight) / 2, cx, cy + (r + topCurveHeight) / 1.3, cx, cy + r * 1.4);
+  ctx.bezierCurveTo(cx, cy + (r + topCurveHeight) / 1.3, cx + r, cy + (r + topCurveHeight) / 2, cx + r, cy + topCurveHeight);
+  ctx.bezierCurveTo(cx + r, cy, cx, cy, cx, cy + topCurveHeight);
+  ctx.closePath();
+}
+
+function drawTriangle(x0, y0, x1, y1) {
+  const w = x1 - x0, h = y1 - y0;
+  ctx.beginPath();
+  ctx.moveTo(x0 + w / 2, y0);
+  ctx.lineTo(x0, y1);
+  ctx.lineTo(x1, y1);
+  ctx.closePath();
+}
+
+// ---------- Målarbilder (svarta konturer på vit botten) ----------
+function outlineStyle(w = 5) {
+  ctx.strokeStyle = '#2d3436';
+  ctx.fillStyle = '#2d3436';
+  ctx.lineWidth = w;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+}
+
+function circlePath(cx, cy, r) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+}
+
+const pictures = {
+  blank() {
+    whiteCanvas();
+  },
+  house() {
+    whiteCanvas();
+    outlineStyle(6);
+    // Sol
+    circlePath(1030, 110, 55); ctx.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      ctx.beginPath();
+      ctx.moveTo(1030 + Math.cos(a) * 65, 110 + Math.sin(a) * 65);
+      ctx.lineTo(1030 + Math.cos(a) * 90, 110 + Math.sin(a) * 90);
+      ctx.stroke();
+    }
+    // Moln
+    ctx.beginPath();
+    circlePath(180, 120, 35); ctx.stroke();
+    circlePath(220, 100, 45); ctx.stroke();
+    circlePath(265, 125, 32); ctx.stroke();
+    // Hus-kropp
+    ctx.strokeRect(340, 340, 480, 300);
+    // Tak
+    ctx.beginPath();
+    ctx.moveTo(310, 340);
+    ctx.lineTo(580, 160);
+    ctx.lineTo(850, 340);
+    ctx.closePath();
+    ctx.stroke();
+    // Skorsten
+    ctx.strokeRect(700, 190, 45, 100);
+    // Dörr
+    ctx.strokeRect(540, 480, 100, 160);
+    circlePath(620, 560, 6); ctx.fill();
+    // Fönster
+    ctx.strokeRect(400, 400, 90, 90);
+    ctx.beginPath(); ctx.moveTo(445, 400); ctx.lineTo(445, 490); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(400, 445); ctx.lineTo(490, 445); ctx.stroke();
+    ctx.strokeRect(690, 400, 90, 90);
+    ctx.beginPath(); ctx.moveTo(735, 400); ctx.lineTo(735, 490); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(690, 445); ctx.lineTo(780, 445); ctx.stroke();
+    // Gräs
+    ctx.beginPath();
+    ctx.moveTo(0, 640);
+    ctx.quadraticCurveTo(600, 600, 1200, 640);
+    ctx.stroke();
+    // Blommor i gräset
+    [120, 950, 1080].forEach(x => {
+      circlePath(x, 660, 10); ctx.stroke();
+      circlePath(x - 14, 655, 10); ctx.stroke();
+      circlePath(x + 14, 655, 10); ctx.stroke();
+    });
+  },
+  flower() {
+    whiteCanvas();
+    outlineStyle(6);
+    const cx = 600, cy = 320;
+    // Stjälk
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + 60);
+    ctx.quadraticCurveTo(cx - 20, 500, cx, 640);
+    ctx.stroke();
+    // Blad
+    ctx.beginPath();
+    ctx.moveTo(cx - 5, 480);
+    ctx.quadraticCurveTo(cx - 130, 460, cx - 150, 540);
+    ctx.quadraticCurveTo(cx - 60, 540, cx - 5, 480);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 5, 550);
+    ctx.quadraticCurveTo(cx + 140, 540, cx + 160, 610);
+    ctx.quadraticCurveTo(cx + 60, 610, cx + 5, 550);
+    ctx.stroke();
+    // Kronblad (6 st)
+    const petals = 6;
+    for (let i = 0; i < petals; i++) {
+      const a = (i / petals) * Math.PI * 2;
+      const px = cx + Math.cos(a) * 110;
+      const py = cy + Math.sin(a) * 110;
+      circlePath(px, py, 70);
+      ctx.stroke();
+    }
+    // Mitt
+    circlePath(cx, cy, 60);
+    ctx.stroke();
+    // Sol i hörnet
+    circlePath(1050, 100, 50); ctx.stroke();
+  },
+  fish() {
+    whiteCanvas();
+    outlineStyle(6);
+    const cx = 560, cy = 350;
+    // Kropp
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 260, 150, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Stjärt
+    ctx.beginPath();
+    ctx.moveTo(cx + 250, cy);
+    ctx.lineTo(cx + 420, cy - 130);
+    ctx.lineTo(cx + 420, cy + 130);
+    ctx.closePath();
+    ctx.stroke();
+    // Fena ovanpå
+    ctx.beginPath();
+    ctx.moveTo(cx - 30, cy - 145);
+    ctx.lineTo(cx + 60, cy - 250);
+    ctx.lineTo(cx + 130, cy - 130);
+    ctx.closePath();
+    ctx.stroke();
+    // Fena undertill
+    ctx.beginPath();
+    ctx.moveTo(cx - 20, cy + 140);
+    ctx.lineTo(cx + 40, cy + 230);
+    ctx.lineTo(cx + 110, cy + 130);
+    ctx.closePath();
+    ctx.stroke();
+    // Öga
+    circlePath(cx - 160, cy - 30, 25); ctx.stroke();
+    circlePath(cx - 160, cy - 30, 8); ctx.fill();
+    // Mun
+    ctx.beginPath();
+    ctx.arc(cx - 250, cy + 20, 30, Math.PI * 0.2, Math.PI * 0.8);
+    ctx.stroke();
+    // Bubblor
+    [ [900,150,20], [960,220,14], [1010,120,10] ].forEach(([x,y,r]) => {
+      circlePath(x, y, r); ctx.stroke();
+    });
+    // Alger
+    for (const x of [80, 160]) {
+      ctx.beginPath();
+      ctx.moveTo(x, 660);
+      ctx.quadraticCurveTo(x - 30, 580, x + 10, 520);
+      ctx.stroke();
+    }
+  },
+  robot() {
+    whiteCanvas();
+    outlineStyle(6);
+    // Huvud
+    ctx.strokeRect(430, 130, 220, 180);
+    circlePath(500, 220, 18); ctx.stroke();
+    circlePath(580, 220, 18); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(500, 275); ctx.lineTo(580, 275); ctx.stroke();
+    // Antenn
+    ctx.beginPath();
+    ctx.moveTo(540, 130); ctx.lineTo(540, 70); ctx.stroke();
+    circlePath(540, 55, 16); ctx.stroke();
+    // Kropp
+    ctx.strokeRect(380, 340, 320, 260);
+    ctx.strokeRect(460, 400, 160, 120);
+    circlePath(540, 460, 30); ctx.stroke();
+    // Knappar
+    [ [420, 620], [480, 620], [660, 620], [720, 620] ].forEach(([x,y]) => {
+      circlePath(x, y, 18); ctx.stroke();
+    });
+    // Armar
+    ctx.strokeRect(280, 360, 90, 40);
+    ctx.strokeRect(190, 360, 100, 100);
+    ctx.strokeRect(670, 360, 90, 40);
+    ctx.strokeRect(910, 360, 100, 100);
+    // Ben
+    ctx.strokeRect(420, 600, 70, 90);
+    ctx.strokeRect(590, 600, 70, 90);
+  },
+  cat() {
+    whiteCanvas();
+    outlineStyle(6);
+    const cx = 600, cy = 330;
+    // Kropp
+    ctx.beginPath();
+    ctx.ellipse(cx, 560, 200, 110, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Svans
+    ctx.beginPath();
+    ctx.moveTo(cx + 190, 600);
+    ctx.quadraticCurveTo(cx + 380, 620, cx + 360, 460);
+    ctx.stroke();
+    // Huvud
+    circlePath(cx, cy, 170);
+    ctx.stroke();
+    // Öron
+    ctx.beginPath();
+    ctx.moveTo(cx - 150, cy - 90);
+    ctx.lineTo(cx - 190, cy - 260);
+    ctx.lineTo(cx - 40, cy - 150);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 150, cy - 90);
+    ctx.lineTo(cx + 190, cy - 260);
+    ctx.lineTo(cx + 40, cy - 150);
+    ctx.closePath();
+    ctx.stroke();
+    // Ögon
+    circlePath(cx - 65, cy - 10, 26); ctx.stroke();
+    circlePath(cx + 65, cy - 10, 26); ctx.stroke();
+    circlePath(cx - 65, cy - 10, 7); ctx.fill();
+    circlePath(cx + 65, cy - 10, 7); ctx.fill();
+    // Nos
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy + 45);
+    ctx.lineTo(cx + 14, cy + 45);
+    ctx.lineTo(cx, cy + 65);
+    ctx.closePath();
+    ctx.fill();
+    // Morrhår
+    [-1, 1].forEach(side => {
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx + side * 30, cy + 60 + i * 18);
+        ctx.lineTo(cx + side * 160, cy + 40 + i * 25);
+        ctx.stroke();
+      }
+    });
+    // Mun
+    ctx.beginPath();
+    ctx.arc(cx - 15, cy + 65, 18, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx + 15, cy + 65, 18, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+  },
+  rocket() {
+    whiteCanvas();
+    outlineStyle(6);
+    const cx = 600;
+    // Kropp
+    ctx.beginPath();
+    ctx.moveTo(cx, 90);
+    ctx.quadraticCurveTo(cx + 140, 260, cx + 110, 480);
+    ctx.lineTo(cx - 110, 480);
+    ctx.quadraticCurveTo(cx - 140, 260, cx, 90);
+    ctx.closePath();
+    ctx.stroke();
+    // Fönster
+    circlePath(cx, 260, 60); ctx.stroke();
+    // Fenor
+    ctx.beginPath();
+    ctx.moveTo(cx - 110, 400);
+    ctx.lineTo(cx - 230, 520);
+    ctx.lineTo(cx - 100, 490);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 110, 400);
+    ctx.lineTo(cx + 230, 520);
+    ctx.lineTo(cx + 100, 490);
+    ctx.closePath();
+    ctx.stroke();
+    // Bälte
+    ctx.beginPath();
+    ctx.moveTo(cx - 110, 420);
+    ctx.lineTo(cx + 110, 420);
+    ctx.stroke();
+    // Flammor
+    ctx.beginPath();
+    ctx.moveTo(cx - 60, 480);
+    ctx.quadraticCurveTo(cx - 40, 580, cx, 630);
+    ctx.quadraticCurveTo(cx + 40, 580, cx + 60, 480);
+    ctx.stroke();
+    // Stjärnor
+    [[150,150],[250,400],[950,200],[1050,450],[900,550]].forEach(([x,y]) => {
+      drawStar(x, y, 20); ctx.stroke();
+    });
+  },
+  butterfly() {
+    whiteCanvas();
+    outlineStyle(6);
+    const cx = 600, cy = 360;
+    // Kropp
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 22, 150, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Antenner
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, cy - 140); ctx.quadraticCurveTo(cx - 60, cy - 220, cx - 40, cy - 260);
+    ctx.stroke();
+    circlePath(cx - 40, cy - 262, 8); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 8, cy - 140); ctx.quadraticCurveTo(cx + 60, cy - 220, cx + 40, cy - 260);
+    ctx.stroke();
+    circlePath(cx + 40, cy - 262, 8); ctx.stroke();
+    // Övre vingar
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 90);
+    ctx.quadraticCurveTo(cx - 260, cy - 260, cx - 300, cy - 30);
+    ctx.quadraticCurveTo(cx - 220, cy + 40, cx, cy - 20);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 90);
+    ctx.quadraticCurveTo(cx + 260, cy - 260, cx + 300, cy - 30);
+    ctx.quadraticCurveTo(cx + 220, cy + 40, cx, cy - 20);
+    ctx.closePath();
+    ctx.stroke();
+    // Undre vingar
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.quadraticCurveTo(cx - 190, cy + 60, cx - 170, cy + 230);
+    ctx.quadraticCurveTo(cx - 60, cy + 220, cx, cy + 60);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.quadraticCurveTo(cx + 190, cy + 60, cx + 170, cy + 230);
+    ctx.quadraticCurveTo(cx + 60, cy + 220, cx, cy + 60);
+    ctx.closePath();
+    ctx.stroke();
+    // Prickar på vingarna
+    [[-160,-80],[160,-80],[-120,120],[120,120]].forEach(([dx,dy]) => {
+      circlePath(cx + dx, cy + dy, 20); ctx.stroke();
+    });
+  }
+};
+
+// ---------- Rita ----------
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY
+  };
+}
+
+function applyStyle() {
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = size;
+}
+
+// ---------- Hinkfyllning (flood fill) ----------
+function hexToRgb(hex) {
+  const v = parseInt(hex.slice(1), 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255, 255];
+}
+
+function floodFill(x0, y0, fillColor) {
+  x0 = Math.floor(x0); y0 = Math.floor(y0);
+  const w = canvas.width, h = canvas.height;
+  if (x0 < 0 || y0 < 0 || x0 >= w || y0 >= h) return;
+
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+  const idx = (x, y) => (y * w + x) * 4;
+
+  const startIdx = idx(x0, y0);
+  const target = [data[startIdx], data[startIdx+1], data[startIdx+2], data[startIdx+3]];
+  const fill = hexToRgb(fillColor);
+
+  if (target[0] === fill[0] && target[1] === fill[1] && target[2] === fill[2]) return;
+
+  const tolerance = 60;
+  function matches(i) {
+    return Math.abs(data[i] - target[0]) <= tolerance &&
+           Math.abs(data[i+1] - target[1]) <= tolerance &&
+           Math.abs(data[i+2] - target[2]) <= tolerance;
+  }
+
+  const stack = [[x0, y0]];
+  const visited = new Uint8Array(w * h);
+
+  while (stack.length) {
+    const [x, y] = stack.pop();
+    if (x < 0 || x >= w || y < 0 || y >= h) continue;
+    const pixel = y * w + x;
+    if (visited[pixel]) continue;
+    const i = pixel * 4;
+    if (!matches(i)) continue;
+
+    visited[pixel] = 1;
+    data[i] = fill[0]; data[i+1] = fill[1]; data[i+2] = fill[2]; data[i+3] = 255;
+
+    stack.push([x + 1, y]);
+    stack.push([x - 1, y]);
+    stack.push([x, y + 1]);
+    stack.push([x, y - 1]);
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function startDraw(e) {
+  e.preventDefault();
+  const pos = getPos(e);
+
+  if (tool === 'bucket') {
+    floodFill(pos.x, pos.y, color);
+    saveHistory();
+    return;
+  }
+
+  drawing = true;
+  startX = pos.x;
+  startY = pos.y;
+  applyStyle();
+
+  if (tool === 'pen' || tool === 'eraser') {
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+  } else {
+    snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  }
+}
+
+function moveDraw(e) {
+  if (!drawing) return;
+  e.preventDefault();
+  const pos = getPos(e);
+  applyStyle();
+
+  if (tool === 'pen') {
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+  } else if (tool === 'eraser') {
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+  } else {
+    ctx.putImageData(snapshot, 0, 0);
+    const w = pos.x - startX;
+    const h = pos.y - startY;
+
+    if (tool === 'line') {
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    } else if (tool === 'rect') {
+      if (filled) ctx.fillRect(startX, startY, w, h);
+      else ctx.strokeRect(startX, startY, w, h);
+    } else if (tool === 'circle') {
+      const r = Math.sqrt(w * w + h * h);
+      ctx.beginPath();
+      ctx.arc(startX, startY, r, 0, Math.PI * 2);
+      filled ? ctx.fill() : ctx.stroke();
+    } else if (tool === 'triangle') {
+      drawTriangle(startX, startY, pos.x, pos.y);
+      filled ? ctx.fill() : ctx.stroke();
+    } else if (tool === 'star') {
+      const r = Math.sqrt(w * w + h * h);
+      drawStar(startX, startY, r);
+      filled ? ctx.fill() : ctx.stroke();
+    } else if (tool === 'heart') {
+      const r = Math.sqrt(w * w + h * h) / 1.5;
+      drawHeart(startX, startY, r);
+      filled ? ctx.fill() : ctx.stroke();
+    }
+  }
+}
+
+function endDraw() {
+  if (!drawing) return;
+  drawing = false;
+  saveHistory();
+}
+
+canvas.addEventListener('mousedown', startDraw);
+canvas.addEventListener('mousemove', moveDraw);
+canvas.addEventListener('mouseup', endDraw);
+canvas.addEventListener('mouseleave', endDraw);
+canvas.addEventListener('touchstart', startDraw);
+canvas.addEventListener('touchmove', moveDraw);
+canvas.addEventListener('touchend', endDraw);
+
+// ---------- Verktygsval ----------
+document.querySelectorAll('.tool').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tool').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    tool = btn.dataset.tool;
+  });
+});
+
+// ---------- Färgval ----------
+document.querySelectorAll('.swatch').forEach(sw => {
+  sw.addEventListener('click', () => {
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    color = sw.dataset.color;
+    document.getElementById('colorPicker').value = color;
+  });
+});
+
+document.getElementById('colorPicker').addEventListener('input', (e) => {
+  color = e.target.value;
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+});
+
+document.getElementById('sizeRange').addEventListener('input', (e) => {
+  size = parseInt(e.target.value);
+});
+
+document.getElementById('fillToggle').addEventListener('click', (e) => {
+  filled = !filled;
+  e.target.classList.toggle('active', filled);
+  e.target.textContent = filled ? 'Fyll: På' : 'Fyll: Av';
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  whiteCanvas();
+  saveHistory();
+});
+
+document.getElementById('undoBtn').addEventListener('click', () => {
+  if (history.length <= 1) return;
+  history.pop();
+  const last = history[history.length - 1];
+  const img = new Image();
+  img.onload = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+  };
+  img.src = last;
+});
+
+document.getElementById('saveBtn').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = 'min-teckning.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+});
+
+// ---------- Galleri av målarbilder ----------
+document.querySelectorAll('.pic').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.pic;
+    if (pictures[key]) {
+      pictures[key]();
+      history = [];
+      saveHistory();
+    }
+  });
+});
+
+// ---------- Start ----------
+whiteCanvas();
+saveHistory();
+</script>
+
+</body>
+</html>
