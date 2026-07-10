@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Studsplattform 🏀</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: 'Trebuchet MS', 'Comic Sans MS', sans-serif;
+    background: linear-gradient(135deg, #6C5CE7, #00CEC9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+  h1 {
+    color: #2d3436;
+    margin: 0;
+    font-size: clamp(14px, 2.4vh, 22px);
+    white-space: nowrap;
+  }
+  #app {
+    background: white;
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+    max-width: 1000px;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #f1f2f6;
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  .diff-group {
+    display: flex;
+    gap: 4px;
+    background: white;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  button.diff {
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-weight: bold;
+    font-size: clamp(11px, 1.6vh, 14px);
+    cursor: pointer;
+    color: #636e72;
+  }
+  button.diff.active { background: #6C5CE7; color: white; }
+  .stats {
+    font-weight: bold;
+    color: #2d3436;
+    font-size: clamp(12px, 1.8vh, 15px);
+    white-space: nowrap;
+  }
+  button.action {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #2d3436;
+    font-size: clamp(11px, 1.6vh, 14px);
+    white-space: nowrap;
+    background: #fdcb6e;
+  }
+  .board-wrap {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    overflow: hidden;
+  }
+  canvas {
+    background: #dfe9fb;
+    border: 3px solid #2d3436;
+    border-radius: 10px;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: pointer;
+  }
+  #overOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(45,52,54,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #overOverlay.hidden { display: none; }
+  .over-card {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 28px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    max-width: 360px;
+  }
+  .over-card .emoji { font-size: 3rem; margin-bottom: 8px; }
+  .over-card p { color: #2d3436; font-size: 1.1rem; margin: 8px 0 20px; }
+  .over-card button {
+    background: #00b894;
+    color: white;
+    font-size: 1rem;
+    padding: 10px 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <h1>🏀 Studsplattform</h1>
+    <div class="diff-group">
+      <button class="diff" data-diff="easy">Lätt</button>
+      <button class="diff active" data-diff="medium">Mellan</button>
+      <button class="diff" data-diff="hard">Svår</button>
+    </div>
+    <div class="stats">Höjd: <span id="score">0</span></div>
+    <button id="restartBtn" class="action">🔄 Ny omgång</button>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+</div>
+
+<div id="overOverlay" class="hidden">
+  <div class="over-card">
+    <div class="emoji" id="overEmoji">💥</div>
+    <div><strong id="overTitle">Game over!</strong></div>
+    <p>Du nådde <span id="overScore"></span> poäng</p>
+    <button id="playAgainBtn" class="action">Spela igen</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const overOverlay = document.getElementById('overOverlay');
+const overScoreEl = document.getElementById('overScore');
+
+const SETTINGS = {
+  easy:   { rowGapRef: 100, widthFrac: 0.30, spreadFrac: 0.10 },
+  medium: { rowGapRef: 150, widthFrac: 0.20, spreadFrac: 0.16 },
+  hard:   { rowGapRef: 195, widthFrac: 0.14, spreadFrac: 0.22 },
+};
+const CHAR_EMOJI = '🏀';
+const PLATFORM_COLORS = ['#00b894', '#0984e3', '#e17055', '#6C5CE7', '#fdcb6e'];
+
+let difficulty = 'medium';
+let W = 0, H = 0;
+let gravity = 0, bounceVel = 0;
+let rowGap = 0, platW = 0, platH = 0, spreadPx = 0;
+let charR = 0, keySpeed = 0, centerLine = 0;
+let player = { x: 0, y: 0, vy: 0 };
+let platforms = [];
+let lastPlatformCenterX = 0, lastPlatformY = 0;
+let scrollY = 0, score = 0;
+let running = false;
+let rafId = null;
+let lastTime = 0;
+let pointerX = null;
+const keys = { left: false, right: false };
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function spawnRow(fromCenterX, fromY) {
+  const targetY = fromY - rowGap;
+  let cx = fromCenterX + (Math.random() * 2 - 1) * spreadPx;
+  cx = clamp(cx, platW / 2 + 8, W - platW / 2 - 8);
+  platforms.push({ x: cx - platW / 2, y: targetY, w: platW, h: platH });
+  lastPlatformCenterX = cx;
+  lastPlatformY = targetY;
+}
+
+function ensurePlatformsAbove() {
+  while (lastPlatformY > -rowGap) {
+    spawnRow(lastPlatformCenterX, lastPlatformY);
+  }
+}
+
+function computeLayout() {
+  const wrap = canvas.parentElement;
+  W = Math.max(1, Math.round(wrap.clientWidth));
+  H = Math.max(1, Math.round(wrap.clientHeight));
+  canvas.width = W;
+  canvas.height = H;
+
+  const scale = H / 700;
+  gravity = 1900 * scale;
+  bounceVel = 1000 * scale;
+
+  const s = SETTINGS[difficulty];
+  rowGap = s.rowGapRef * scale;
+  platW = Math.max(36, W * s.widthFrac);
+  platH = Math.max(10, H * 0.022);
+  spreadPx = W * s.spreadFrac;
+
+  charR = Math.max(16, Math.min(34, W * 0.045));
+  keySpeed = W * 0.9;
+  centerLine = H * 0.42;
+
+  platforms = [];
+  const startY = H - platH - Math.max(28, H * 0.05);
+  platforms.push({ x: W / 2 - platW / 2, y: startY, w: platW, h: platH });
+  lastPlatformCenterX = W / 2;
+  lastPlatformY = startY;
+  ensurePlatformsAbove();
+
+  player.x = W / 2;
+  player.y = startY - charR - 1;
+  player.vy = -bounceVel;
+}
+
+function resetGame() {
+  computeLayout();
+  scrollY = 0;
+  score = 0;
+  scoreEl.textContent = '0';
+  overOverlay.classList.add('hidden');
+  running = true;
+  lastTime = performance.now();
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(loop);
+}
+
+function update(dt) {
+  if (pointerX !== null) {
+    player.x = pointerX;
+  } else {
+    if (keys.left) player.x -= keySpeed * dt;
+    if (keys.right) player.x += keySpeed * dt;
+  }
+  if (player.x < -charR) player.x = W + charR;
+  if (player.x > W + charR) player.x = -charR;
+
+  player.vy += gravity * dt;
+  const prevY = player.y;
+  player.y += player.vy * dt;
+
+  if (player.vy > 0) {
+    const feetPrev = prevY + charR;
+    const feetNow = player.y + charR;
+    let landed = null;
+    for (const p of platforms) {
+      if (feetPrev <= p.y && feetNow >= p.y &&
+          player.x + charR > p.x && player.x - charR < p.x + p.w) {
+        if (!landed || p.y < landed.y) landed = p;
+      }
+    }
+    if (landed) {
+      player.vy = -bounceVel;
+      player.y = landed.y - charR;
+    }
+  }
+
+  if (player.y < centerLine) {
+    const diff = centerLine - player.y;
+    player.y = centerLine;
+    scrollY += diff;
+    lastPlatformY += diff;
+    for (const p of platforms) p.y += diff;
+    score = Math.floor(scrollY / 10);
+    scoreEl.textContent = String(score);
+  }
+
+  ensurePlatformsAbove();
+  platforms = platforms.filter(p => p.y <= H + platH);
+
+  if (player.y - charR > H) {
+    endGame();
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#dfe9fb';
+  ctx.fillRect(0, 0, W, H);
+
+  platforms.forEach((p, i) => {
+    ctx.fillStyle = PLATFORM_COLORS[i % PLATFORM_COLORS.length];
+    ctx.beginPath();
+    ctx.roundRect(p.x, p.y, p.w, p.h, p.h / 2);
+    ctx.fill();
+  });
+
+  ctx.font = `${charR * 2}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(CHAR_EMOJI, player.x, player.y);
+}
+
+function loop(now) {
+  if (!running) return;
+  const dt = Math.min(0.032, (now - lastTime) / 1000);
+  lastTime = now;
+  update(dt);
+  draw();
+  if (running) rafId = requestAnimationFrame(loop);
+}
+
+function endGame() {
+  running = false;
+  cancelAnimationFrame(rafId);
+  overScoreEl.textContent = String(score);
+  overOverlay.classList.remove('hidden');
+}
+
+document.querySelectorAll('.diff').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+    resetGame();
+  });
+});
+
+document.getElementById('restartBtn').addEventListener('click', resetGame);
+document.getElementById('playAgainBtn').addEventListener('click', resetGame);
+
+function updatePointer(e) {
+  const rect = canvas.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  pointerX = ((clientX - rect.left) / rect.width) * W;
+}
+canvas.addEventListener('mousemove', updatePointer);
+canvas.addEventListener('touchmove', (e) => { e.preventDefault(); updatePointer(e); }, { passive: false });
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); updatePointer(e); }, { passive: false });
+canvas.addEventListener('mouseleave', () => { pointerX = null; });
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+});
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+});
+
+let resizeTimer = null;
+new ResizeObserver(() => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(resetGame, 150);
+}).observe(canvas.parentElement);
+
+resetGame();
+</script>
+
+</body>
+</html>
